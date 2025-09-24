@@ -37,10 +37,10 @@ export default function PrescriptionsScreen() {
         router.push('/dashboard');
         break;
       case 'machines':
-        console.log('Navigate to machines');
+        router.push('/machines');
         break;
       case 'notifications':
-        console.log('Navigate to notifications');
+        router.push('/notifications');
         break;
       case 'profile':
         router.push('/profile');
