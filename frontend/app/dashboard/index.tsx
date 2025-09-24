@@ -27,7 +27,7 @@ export default function DashboardScreen() {
         router.push('/machines');
         break;
       case 'notifications':
-        console.log('Navigate to notifications');
+        router.push('/notifications');
         break;
       case 'profile':
         router.push('/profile');
