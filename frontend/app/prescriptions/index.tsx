@@ -66,12 +66,14 @@ export default function PrescriptionsScreen() {
           <View style={styles.prescriptionsContainer}>
             <View style={styles.prescriptionsList}>
               {mockPrescriptions.map((prescription, index) => (
-                <View 
+                <TouchableOpacity
                   key={prescription.id}
                   style={[
                     styles.prescriptionItem,
                     index !== mockPrescriptions.length - 1 && styles.prescriptionItemBorder
                   ]}
+                  onPress={() => router.push(`/prescriptions/${prescription.id}`)}
+                  activeOpacity={0.8}
                 >
                   <View style={styles.prescriptionInfo}>
                     <Text style={styles.prescriptionName}>{prescription.name}</Text>
@@ -81,7 +83,7 @@ export default function PrescriptionsScreen() {
                     <Text style={styles.nextIntakeLabel}>Next intake</Text>
                     <Text style={styles.nextIntakeTime}>{prescription.nextIntake}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
