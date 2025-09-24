@@ -28,7 +28,7 @@ const mockPrescriptions = [
 
 export default function PrescriptionsScreen() {
   const handleAddPrescription = () => {
-    console.log('Add prescription pressed');
+    router.push('/prescriptions/new');
   };
 
   const handleNavigateToTab = (tab: string) => {
