@@ -24,7 +24,7 @@ export default function DashboardScreen() {
         router.push('/prescriptions');
         break;
       case 'machines':
-        console.log('Navigate to machines');
+        router.push('/machines');
         break;
       case 'notifications':
         console.log('Navigate to notifications');
