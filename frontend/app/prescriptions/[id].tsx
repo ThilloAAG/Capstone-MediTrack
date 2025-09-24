@@ -73,7 +73,7 @@ export default function PrescriptionDetailScreen() {
         router.push('/notifications');
         break;
       case 'profile':
-        console.log('Navigate to profile');
+        router.push('/profile');
         break;
       default:
         break;
