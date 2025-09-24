@@ -12,7 +12,7 @@ export default function DeviceConnectionScreen() {
   };
 
   const handleConnectDevice = () => {
-    router.push('/auth/login');
+    router.push('/dashboard');
   };
 
   return (
