@@ -11,17 +11,17 @@ export default function LoginScreen() {
 
   const handleLogin = () => {
     // Mock authentication - always succeeds
-    router.push('/dashboard');
+    router.push('/onboarding/welcome');
   };
 
   const handleGoogleSignIn = () => {
     // Mock Google sign-in
-    router.push('/dashboard');
+    router.push('/onboarding/welcome');
   };
 
   const handleCreateAccount = () => {
-    // Mock - for now just navigate to dashboard
-    router.push('/dashboard');
+    // Mock - for now just navigate to onboarding
+    router.push('/onboarding/welcome');
   };
 
   return (
