@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "expo": "^54.0.12",
+    "expo-auth-session": "~7.0.8",
+    "expo-random": "^14.0.1",
+    "firebase": "^12.3.0"
+  }
+}
