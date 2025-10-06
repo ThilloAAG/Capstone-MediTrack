@@ -4,25 +4,57 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { registerUser, loginUser } from '../../src/services/auth';
+import { Alert , ActivityIndicator} from 'react-native';
+
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // Mock authentication - always succeeds
-    router.push('/onboarding/welcome');
+  const [errors, setErrors] = useState<{email?: string; password?: string; form?: string}>({});
+  const [loading, setLoading] = useState(false);
+
+  
+  const validate = () => {
+    const e: any = {};
+  
+    if (!email.trim()) {
+      e.email = "Email requis.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      e.email = "Adresse email invalide.";
+    }
+  
+    if (!password.trim()) {
+      e.password = "Mot de passe requis.";
+    }
+  
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
+
+  const handleLogin = async () => 
+    { if (!validate()) return; setLoading(true);
+       try { await loginUser(email, password); 
+        // ➜ appelle Firebase via ton service 
+        router.push('/onboarding/welcome'); } catch (err: any) { 
+          // message du service (ex: "Identifiants incorrects.") 
+          setErrors((prev) => ({ ...prev, form: err?.message ?? "Erreur de connexion." })); 
+          // ou 
+          Alert.alert('Connexion', err?.message ?? 'Erreur de connexion'); 
+          setEmail('');
+          setPassword('');
+        } 
+          finally { setLoading(false); } };
+
+
+
+
 
   const handleGoogleSignIn = () => {
-    // Mock Google sign-in
-    router.push('/onboarding/welcome');
+    Alert.alert('Bientôt', "Google Sign-In sera branché ensuite 😉");
   };
 
-  const handleCreateAccount = () => {
-    // Mock - for now just navigate to onboarding
-    router.push('/onboarding/welcome');
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -67,6 +99,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity 
                 style={styles.loginButton}
+                
                 onPress={handleLogin}
                 activeOpacity={0.8}
               >
@@ -95,7 +128,7 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={handleCreateAccount} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push('/auth/signupscreen')} activeOpacity={0.8}>
             <Text style={styles.footerText}>
               Don't have an account?{' '}
               <Text style={styles.createAccountText}>Create Account</Text>

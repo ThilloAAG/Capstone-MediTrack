@@ -1,12 +1,10 @@
-// Import the functions you need from the SDKs you need
-import { getAnalytics } from "firebase/analytics";
-import { initializeApp } from "firebase/app";
+// src/firebase.ts (ou .js)
+import { Platform } from "react-native";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBLxkoXNxYLcV8SLyEzxCAq3vtePw1xKMY",
   authDomain: "meditrack-f6141.firebaseapp.com",
@@ -14,13 +12,16 @@ const firebaseConfig = {
   storageBucket: "meditrack-f6141.firebasestorage.app",
   messagingSenderId: "326160252762",
   appId: "1:326160252762:web:36a594f1620d2c1a8a7d63",
-  measurementId: "G-RBWVGLJL14"
+  measurementId: "G-RBWVGLJL14",
 };
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const db = getFirestore(app); // <--- Initialize Firestore here
-const auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) }); // <--- Initialize Auth here
 
-// Export Firestore (db) along with app and analytics if needed elsewhere
-export { analytics, app, db,auth }; // <--- Export 'db' for use in other files
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+const db = getFirestore(app);
+
+const auth =
+  Platform.OS === "web"
+    ? getAuth(app) // Web
+    : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) }); // iOS/Android
+
+export { app, db, auth };
