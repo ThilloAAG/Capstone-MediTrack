@@ -8,7 +8,6 @@ export default function DoctorScreen() {
   const [specialty, setSpecialty] = useState("");
   const [doctors, setDoctors] = useState([]);
 
-  // 🔹 Charger tous les docteurs
   const fetchDoctors = async () => {
     const allDoctors = await getAllDoctors();
     setDoctors(allDoctors);
@@ -18,7 +17,6 @@ export default function DoctorScreen() {
     fetchDoctors();
   }, []);
 
-  // 🔹 Ajouter un docteur
   const handleAddDoctor = async () => {
     if (!fullName || !specialty) {
       Alert.alert("Erreur", "Remplis tous les champs");
