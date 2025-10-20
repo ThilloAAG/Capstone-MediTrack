@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from "react-native";
 import { auth } from "../firebase";
-import { addDoctor, getAllDoctors } from "../services/DoctorService";
+import { addDoctor, getAllDoctors } from "../../../services/DoctorService.js";
 
 export default function DoctorScreen() {
   const [fullName, setFullName] = useState("");
