@@ -1,6 +1,6 @@
 // notifier le médecin
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../src/firebase";
 
 /**
  * sendEmergencyAlert

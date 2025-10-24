@@ -74,7 +74,6 @@ export default function PrescriptionsScreen() {
       <StatusBar style="dark" />
       <View style={styles.wrapper}>
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Prescriptions</Text>
           </View>

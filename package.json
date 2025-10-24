@@ -4,5 +4,9 @@
     "expo-auth-session": "~7.0.8",
     "expo-random": "^14.0.1",
     "firebase": "^12.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
   }
 }

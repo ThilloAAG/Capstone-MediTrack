@@ -1,6 +1,6 @@
 // récupérer contact du docteur / profil
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../src/firebase";
 
 /**
  * getUserProfile(userId) -> { name, email, doctorId, ... }
