@@ -1,59 +1,88 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { auth, db } from '../../src/firebase';
+import { doc, onSnapshot, deleteDoc } from 'firebase/firestore';
 
-const mockPrescription = {
-  id: '1',
-  name: 'Lisinopril',
-  dosage: '20mg',
-  amount: '1 tablet',
-  frequency: 'Once daily',
-  time: '8:00 AM',
-  refillsLeft: 3,
-  notes: 'Take with water. Avoid grapefruit juice.',
-  image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDG93ImM15k-_eRgP2JV_zt-XVOpNx-n-3exriZj3ku9zgqzKU4O5VizU4WITiFUsdEaCUWhijEgyZEUf9Hy-048vWR-L7yarUt6zWADxbWibXwdSewHY8Uxlkw7jM36RHcuEOahUOpeUaVmX-EK3M7IORyIZS0Q-DlQlPOGUqVnf9Us0MK4FUOMAMZqlqK1EeuGiPdMYfOjFubj0dUgnQ0NVNwB69jUJDd_35-R4C2gPc0FqQ4gGx20BSZz47RfFrQbnaVMmi4e-E',
+type Prescription = {
+  id: string;
+  medicationName?: string;
+  dosage?: string;
+  frequency?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  userId?: string;
 };
 
 export default function PrescriptionDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const docId = useMemo(() => (Array.isArray(params.id) ? params.id[0] : params.id) || '', [params.id]);
+  const [prescription, setPrescription] = useState<Prescription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+
+useEffect(() => {
+  // 🔹 D’abord, récupère l’utilisateur courant
+  const uid = auth.currentUser?.uid;
+
+  // 🔹 Si on n’a pas d’utilisateur ou pas d’ID de prescription, on sort
+  if (!docId || !uid) {
+    setLoading(false);
+    return;
+  }
+
+  // 🔹 On construit la bonne référence Firestore
+  const ref = doc(db, 'prescriptions', uid, 'userPrescriptions', docId);
+
+  // 🔹 On écoute le document
+  const unsub = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) {
+      setPrescription(null);
+      setIsOwner(false);
+      setLoading(false);
+      return;
+    }
+
+    // ✅ On récupère les données du document
+    const data = { id: snap.id, ...(snap.data() as any) } as Prescription;
+    setPrescription(data);
+
+    // 🔹 On vérifie si l’utilisateur connecté est bien le propriétaire
+    setIsOwner(true);
+    setLoading(false);
+  });
+
+  // 🔹 Nettoyage à la fin du cycle
+  return unsub;
+}, [docId]);
 
   const handleBack = () => {
     router.back();
   };
 
-  const handleMarkAsTaken = () => {
-    Alert.alert(
-      'Mark as Taken',
-      'Are you sure you want to mark this medication as taken?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Mark as Taken', onPress: () => console.log('Marked as taken') }
-      ]
-    );
-  };
-
-  const handleEdit = () => {
-    console.log('Edit prescription');
-    Alert.alert('Edit Prescription', 'Edit functionality would open here');
-  };
-
   const handleDelete = () => {
+    if (!isOwner || !docId) return;
     Alert.alert(
-      'Delete Prescription',
-      'Are you sure you want to delete this prescription? This action cannot be undone.',
+      'Supprimer',
+      'Confirmer la suppression de cette prescription ? Cette action est irréversible.',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
           style: 'destructive',
-          onPress: () => {
-            console.log('Prescription deleted');
-            router.back();
-          }
-        }
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'prescriptions', docId));
+              router.back();
+            } catch (e) {
+              Alert.alert('Erreur', "Impossible de supprimer la prescription.");
+            }
+          },
+        },
       ]
     );
   };
@@ -100,78 +129,61 @@ export default function PrescriptionDetailScreen() {
 
         {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* Medication Header */}
-          <View style={styles.medicationHeader}>
-            <View style={styles.medicationImageContainer}>
-              <Image
-                source={{ uri: mockPrescription.image }}
-                style={styles.medicationImage}
-                resizeMode="cover"
-              />
-            </View>
-            <View style={styles.medicationInfo}>
-              <Text style={styles.medicationName}>{mockPrescription.name}</Text>
-              <Text style={styles.medicationDosage}>{mockPrescription.dosage}</Text>
-            </View>
-          </View>
+          {loading ? (
+            <Text style={{ color: '#6b7280', textAlign: 'center', padding: 20 }}>Chargement…</Text>
+          ) : !prescription ? (
+            <Text style={{ color: '#ef4444', textAlign: 'center', padding: 20 }}>Prescription introuvable.</Text>
+          ) : !isOwner ? (
+            <Text style={{ color: '#ef4444', textAlign: 'center', padding: 20 }}>Accès non autorisé.</Text>
+          ) : (
+            <>
+              {/* Medication Header */}
+              <View style={styles.medicationHeader}>
+                <View style={styles.medicationImageContainer}>
+                  <Image
+                    source={{ uri: 'https://dummyimage.com/96x96/f3f4f6/aaaaaa.png&text=Rx' }}
+                    style={styles.medicationImage}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.medicationInfo}>
+                  <Text style={styles.medicationName}>{prescription.medicationName || 'Sans nom'}</Text>
+                  <Text style={styles.medicationDosage}>{prescription.dosage || '-'}</Text>
+                </View>
+              </View>
 
-          {/* Details Grid */}
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailCard}>
-              <Text style={styles.detailLabel}>Dosage</Text>
-              <Text style={styles.detailValue}>{mockPrescription.amount}</Text>
-            </View>
-            
-            <View style={styles.detailCard}>
-              <Text style={styles.detailLabel}>Frequency</Text>
-              <Text style={styles.detailValue}>{mockPrescription.frequency}</Text>
-            </View>
-            
-            <View style={styles.detailCard}>
-              <Text style={styles.detailLabel}>Time</Text>
-              <Text style={styles.detailValue}>{mockPrescription.time}</Text>
-            </View>
-            
-            <View style={styles.detailCard}>
-              <Text style={styles.detailLabel}>Refills Left</Text>
-              <Text style={styles.detailValue}>{mockPrescription.refillsLeft}</Text>
-            </View>
-          </View>
+              {/* Details Grid */}
+              <View style={styles.detailsGrid}>
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailLabel}>Fréquence</Text>
+                  <Text style={styles.detailValue}>{prescription.frequency || '-'}</Text>
+                </View>
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailLabel}>Période</Text>
+                  <Text style={styles.detailValue}>
+                    {(prescription.startDate || '') + (prescription.endDate ? ` → ${prescription.endDate}` : '')}
+                  </Text>
+                </View>
+              </View>
 
-          {/* Notes */}
-          <View style={styles.notesCard}>
-            <Text style={styles.notesLabel}>Notes</Text>
-            <Text style={styles.notesValue}>{mockPrescription.notes}</Text>
-          </View>
+              {/* Notes */}
+              {!!prescription.notes && (
+                <View style={styles.notesCard}>
+                  <Text style={styles.notesLabel}>Notes</Text>
+                  <Text style={styles.notesValue}>{prescription.notes}</Text>
+                </View>
+              )}
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.primaryActionButton}
-              onPress={handleMarkAsTaken}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.primaryActionText}>Mark as Taken</Text>
-            </TouchableOpacity>
-
-            <View style={styles.secondaryActions}>
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={handleEdit}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.deleteButton}
-                onPress={handleDelete}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              {/* Actions */}
+              <View style={styles.actionButtons}>
+                <View style={styles.secondaryActions}>
+                  <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.8}>
+                    <Text style={styles.deleteButtonText}>Supprimer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          )}
         </ScrollView>
 
         {/* Bottom Navigation */}

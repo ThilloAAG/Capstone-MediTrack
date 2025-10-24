@@ -1,189 +1,243 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-
-const mockDispensers = [
-  {
-    id: '1',
-    name: 'Dispenser 1',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBibrR3QXNr8JXSsahSxXVqtFJ2gFVtuH_akl71fDZ1fKlkU8I7yuyUQTCoJUeBEm8B_G-hv0HaPVV55o5qsmMdbE7oyEdDlvKmsZ_WXZxmqvLTQPaZvF_ESvMfbezZFYI_O3AIVa8DkHpJDde8TkO3gIZu-WsXbsJsXOzj4OB-SEKvvgMRrrZyEgmNxKenG_e-wlEShFM22f3vFYS2xPhrBOoGE-jOIlX-uf7V9GL-ItzPczZ0OziKuPRw7uN026iMHNVZVwtdSkk',
-  },
-  {
-    id: '2',
-    name: 'Dispenser 2',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDpMw5KkmsTd-d62SnedHyWUkJjiQqwYOubBn2YdVlA1x_ck9Czo8ZOyKoZOEwAV_Z6cCywMVGRhQPxbpo0blq8Tdrx7BuxJMpjnZmdbTCeoE-ejDwbEtDZJ3rZZJ7h-hyEHLJaCMGnSGni1DTLKwveji17POc1sMXkKaMApZ9Ld2n_KoNVmfUKQcHfZdqRj0Z_F-Bv3V8bp2cClh71lgSx43_ZVwH223vsczBiczvspt9yaRxfe05bfZ-Q56hKHEjIzgAdtcyos6A',
-  },
-];
-
-const mockCompartments = [
-  {
-    id: '1',
-    name: 'Compartment 1',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQCDSsKngDS8ZAQ3hUY4sImCddzGxp8qGUDQGAfr4RsHQy_xZpZrn0_r70tEgFRjnrt2VOdcab6CPkur4r6ixyLt58aCJgx2qUtIBA8QLCGzN0AqUM82VS4mjbSf82LEmDZZah_mfCMmlzTDPZJblfM52sx3BZwwnu32kTgaSbXTy0TVhP37uthPhE99dkhdEMAc-Kldva0Vesx5S8ca1JugfJk2s-BiDpVu3HPyh0u69Ax7aI9x2YWuXotESjDdi5IwTNYXDNgX8',
-  },
-  {
-    id: '2',
-    name: 'Compartment 2',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAh3fKJUf4F-LDPoMD2IUvSjVrqcT3cscvoeHsaOcZuHm3XuaQc3aZVkK5GXQh7k9BQP7USxDCeki1Oj71blfGmyWvyiKCfeCtp3PDqtN6-HJ-4JM8tiz06GHxwYUxYyNXRhv4wWxVbJbmjvjkrfb1kSqc8Tf_Sa_FSF1pa9B-iSwyVc--yKkoc_aa-9DH4bz61Sbdj3KwnR2SvS8-P4r6wrFc0E8W1CdtSI1lzm15h1OO8aN8_GP89911hsutNk0gVrnSc9qa0F6w',
-  },
-  {
-    id: '3',
-    name: 'Compartment 3',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA8xpJLgP4bDGrAzmMV8svPaD1Ne53r9p94fsduN_59ytPOGvnumdQc9l5_AFAik5qYUVRGEA1eGI1WKnWhi67mbgVJ3rbaLLiQHjx-ZxSzn-tWYaHXRycadlpdncQLb_ySZ_a6eIHOXQ3rItjIVlWpvtmOa61FF_a-EqGfANvWlIk7342Dk3INbdqccbCCOIlN8qCCivCerY4RO8uuzmlPGCFA8mSA4ViXnz4kD2oY7SLhvLnW3UVv8rYW3P2kMqPz65XfQgkun50',
-  },
-  {
-    id: '4',
-    name: 'Compartment 4',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBakflF4QCVjxTp20SQObTerBagtBRzUSvb4VtFBTmz53ZRuHC-n_CD0JwJZG1H1amH6TYu9Mlanxd2ErnXucdXCZNrAYzrH4oEwP8AO0LK8Yqc30BCGXxoP8-E7fa1UsWb46xF7H6oaZbGQamU5PlN4zDlz_k50UoVp6WJB1_AMR-PMpmjqu9hhHgEZIHqxIbz66CEkh3IYhbawF2747YBWSOk4Hlw25NCWpcSooiXO-OYn3ahLruSxpf81u1kcWHRuCdAS7XxLK8',
-  },
-  {
-    id: '5',
-    name: 'Compartment 5',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAzNT42eXyFNUyhQvln2A0cLcSIfkp-G7aRm3L7B2WFucV2Lw15BCekUZaWdg4_zkdUmvLworHvqw7veo8wgawb7GUhl5Sg4lnoOmiPuqcGSkZP1cqhpJ9TSy6Y1XWZeegmpbQiVJBED0pB9IDgViHkJL_ZjNoalo3xnRAr5UpreMSqDHjSMevjN3LpPG5x3XFgo07sVqO2aUHldGi2oKIa5Jo3SAQrLXZu-L21DkmKG6R59Ag0YQsmRo53NqJ0GxeiGbV-_ZLkf10',
-  },
-  {
-    id: '6',
-    name: 'Compartment 6',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAHMx_TUbfltebYUFXQgN6kDkxNRsyeoP1YrYC0KoZ7o-BYI4SRLhb9h1E4gzq-SDfTWuBry7_0EZS2Wa8AplNMwvHW78ZVnxm47XWpp7gFZO6I0jhnnhpC1tA18CyMbjU66tAyMFuihmkxrmZWxKxfjyPmDzWNDPJMeoQKmx_EkLi3mBeUYAUVrSF2Zc8WjCExzs8qDL-6UQf7OJkq_oS3fy4ZQTEk1l6cT9bzxg15HPXLN4epKSOuMY986L1fekNlJRv2t4wZ61I',
-  },
-];
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+} from "react-native";
+import { db, auth } from "../../src/firebase";
+import { addDoc, collection } from "firebase/firestore";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 
 export default function NewPrescriptionScreen() {
-  const [selectedDispenser, setSelectedDispenser] = useState<string | null>('1');
-  const [selectedCompartment, setSelectedCompartment] = useState<string | null>(null);
+  // Champs de la prescription
+  const [medicationName, setMedicationName] = useState("");
+  const [dose, setDose] = useState<number>(500);
+  const [unit, setUnit] = useState<"mg" | "ml">("mg");
+  const [frequency, setFrequency] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [showDates, setShowDates] = useState(false);
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [endPickerOpen, setEndPickerOpen] = useState(false);
 
   const handleClose = () => {
     router.back();
   };
 
-  const handleNext = () => {
-    if (selectedDispenser && selectedCompartment) {
-      // Mock navigation to next step - for now go back to prescriptions
-      router.push('/prescriptions');
+  const handleSavePrescription = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert("Erreur", "Utilisateur non connecté");
+      return;
+    }
+
+    const dosageValue = `${dose} ${unit}`;
+    if (!medicationName || !dosageValue || !frequency || !startDate || !endDate) {
+      Alert.alert(
+        "Champs manquants",
+        "Nom, dosage, fréquence, date de début et date de fin sont obligatoires."
+      );
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "prescriptions", user.uid, "userPrescriptions"), {
+        userId: user.uid, 
+        medicationName,
+        dosage: dosageValue,
+        frequency,
+        startDate,
+        endDate,
+        notes,
+        createdAt: new Date(),
+      });
+
+      Alert.alert("Succès", "Prescription ajoutée !");
+      router.push("/prescriptions");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erreur", "Impossible d'ajouter la prescription.");
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
-      <View style={styles.wrapper}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={handleClose}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close" size={28} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Prescription</Text>
-          <View style={styles.spacer} />
-        </View>
 
-        {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressDot, styles.progressDotActive]} />
-          <View style={[styles.progressDot, styles.progressDotInactive]} />
-          <View style={[styles.progressDot, styles.progressDotInactive]} />
-        </View>
-
-        {/* Main Content */}
-        <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* Select Dispenser */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select your dispenser</Text>
-            <View style={styles.dispenserGrid}>
-              {mockDispensers.map((dispenser) => (
-                <TouchableOpacity 
-                  key={dispenser.id}
-                  style={[
-                    styles.dispenserItem,
-                    selectedDispenser === dispenser.id && styles.dispenserItemSelected
-                  ]}
-                  onPress={() => setSelectedDispenser(dispenser.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.dispenserImageContainer}>
-                    <Image
-                      source={{ uri: dispenser.image }}
-                      style={styles.dispenserImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <Text style={styles.dispenserName}>{dispenser.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Select Compartments */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select compartments</Text>
-            <View style={styles.compartmentGrid}>
-              {mockCompartments.map((compartment) => (
-                <TouchableOpacity 
-                  key={compartment.id}
-                  style={[
-                    styles.compartmentItem,
-                    selectedCompartment === compartment.id && styles.compartmentItemSelected
-                  ]}
-                  onPress={() => setSelectedCompartment(compartment.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.compartmentImageContainer}>
-                    <Image
-                      source={{ uri: compartment.image }}
-                      style={styles.compartmentImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <Text style={styles.compartmentName}>{compartment.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Footer Button */}
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[
-              styles.nextButton,
-              (!selectedDispenser || !selectedCompartment) && styles.nextButtonDisabled
-            ]}
-            onPress={handleNext}
-            disabled={!selectedDispenser || !selectedCompartment}
-            activeOpacity={0.8}
-          >
-            <Text style={[
-              styles.nextButtonText,
-              (!selectedDispenser || !selectedCompartment) && styles.nextButtonTextDisabled
-            ]}>
-              Next
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="close" size={28} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Nouvelle Prescription</Text>
+        <View style={{ width: 36 }} />
       </View>
+
+      <ScrollView contentContainerStyle={styles.form}>
+        {/* Nom du médicament */}
+        <Text style={styles.label}>Nom du médicament</Text>
+        <TextInput
+          placeholder="Ex : Paracétamol"
+          placeholderTextColor="#9CA3AF"
+          style={styles.input}
+          value={medicationName}
+          onChangeText={setMedicationName}
+        />
+
+        {/* Dose moderne */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Dose</Text>
+          <View style={styles.rowBetween}>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                onPress={() => setDose((d) => Math.max(d - 50, 0))}
+                style={styles.stepperBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="remove" size={18} color="#111827" />
+              </TouchableOpacity>
+              <Text style={styles.stepperValue}>{dose} {unit}</Text>
+              <TouchableOpacity
+                onPress={() => setDose((d) => Math.min(d + 50, 10000))}
+                style={styles.stepperBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={18} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.unitRow}>
+              {(["mg", "ml"] as const).map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  onPress={() => setUnit(u)}
+                  style={[styles.chip, unit === u && styles.chipActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.chipText, unit === u && styles.chipTextActive]}>
+                    {u.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Fréquence avec raccourcis */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Fréquence</Text>
+          <View style={styles.chipsWrap}>
+            {["1/jour", "2/jour", "3/jour", "4/jour", "Toutes 8h"].map((f) => (
+              <TouchableOpacity
+                key={f}
+                style={[styles.chip, frequency === f && styles.chipActive]}
+                onPress={() => setFrequency(f)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.chipText, frequency === f && styles.chipTextActive]}>{f}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            placeholder="Ex : 2 fois par jour"
+            placeholderTextColor="#9CA3AF"
+            style={styles.input}
+            value={frequency}
+            onChangeText={setFrequency}
+          />
+        </View>
+
+        {/* Période (avec calendrier) */}
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardTitle}>Période</Text>
+          </View>
+
+          <View style={styles.dateRow}> 
+            <View style={styles.dateField}>
+              <Text style={styles.inputLabel}>Début</Text>
+              <TouchableOpacity style={styles.dateButton} onPress={() => setStartPickerOpen(true)}>
+                <Ionicons name="calendar" size={16} color="#111827" />
+                <Text style={styles.dateButtonText}>{startDate || "Choisir une date"}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.dateField}>
+              <Text style={styles.inputLabel}>Fin</Text>
+              <TouchableOpacity style={styles.dateButton} onPress={() => setEndPickerOpen(true)}>
+                <Ionicons name="calendar" size={16} color="#111827" />
+                <Text style={styles.dateButtonText}>{endDate || "Choisir une date"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Notes */}
+        <Text style={styles.label}>Notes</Text>
+        <TextInput
+          placeholder="Ex : À prendre après le repas"
+          placeholderTextColor="#9CA3AF"
+          style={[styles.input, styles.textArea]}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+        />
+
+        {/* BOUTON ENREGISTRER */}
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={handleSavePrescription}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.saveButtonText}>Enregistrer</Text>
+        </TouchableOpacity>
+      </ScrollView>
+      {/* Calendriers modaux */}
+      <CalendarModal
+        visible={startPickerOpen}
+        initialDate={startDate}
+        onClose={() => setStartPickerOpen(false)}
+        onSelect={(d) => {
+          setStartDate(d);
+          setStartPickerOpen(false);
+        }}
+      />
+      <CalendarModal
+        visible={endPickerOpen}
+        initialDate={endDate}
+        onClose={() => setEndPickerOpen(false)}
+        onSelect={(d) => {
+          setEndDate(d);
+          setEndPickerOpen(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
+//
+// Styles
+//
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f7f8',
-  },
-  wrapper: {
-    flex: 1,
+    backgroundColor: "#f7f8fa",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -191,145 +245,324 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
-  spacer: {
-    width: 36,
+  form: {
+    padding: 20,
+    gap: 12,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-  },
-  progressDot: {
-    height: 8,
-    width: 8,
-    borderRadius: 4,
-  },
-  progressDotActive: {
-    backgroundColor: '#13a4ec',
-  },
-  progressDotInactive: {
-    backgroundColor: '#d1d5db',
-  },
-  main: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  dispenserGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  dispenserItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  dispenserItemSelected: {
-    transform: [{ scale: 1.05 }],
-  },
-  dispenserImageContainer: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  dispenserImage: {
-    width: '100%',
-    height: '100%',
-  },
-  dispenserName: {
+  label: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#111827",
+    marginTop: 10,
   },
-  compartmentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  compartmentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 16,
+  input: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    width: '47%',
-  },
-  compartmentItemSelected: {
-    backgroundColor: '#13a4ec10',
-    borderColor: '#13a4ec',
-  },
-  compartmentImageContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginRight: 12,
-  },
-  compartmentImage: {
-    width: '100%',
-    height: '100%',
-  },
-  compartmentName: {
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: "#fff",
     fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    color: "#111827",
+  },
+  textArea: {
+    height: 80,
+  },
+  card: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 10,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 10,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  stepperValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    minWidth: 90,
+    textAlign: "center",
+  },
+  unitRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  chipActive: {
+    backgroundColor: "#0A84FF10",
+    borderColor: "#0A84FF",
+  },
+  chipText: {
+    color: "#111827",
+    fontWeight: "600",
+  },
+  chipTextActive: {
+    color: "#0A84FF",
+  },
+  chipsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  dateToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateInputs: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  dateRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 6,
+  },
+  dateField: {
     flex: 1,
   },
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 32,
-    paddingBottom: 48,
-    backgroundColor: '#f6f7f8',
+  inputLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 6,
   },
-  nextButton: {
-    backgroundColor: '#13a4ec',
-    height: 56,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#13a4ec',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+  dateButton: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#ffffff",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  nextButtonDisabled: {
-    backgroundColor: '#d1d5db',
-    shadowOpacity: 0,
-    elevation: 0,
+  dateButtonText: {
+    fontSize: 16,
+    color: "#111827",
   },
-  nextButtonText: {
-    color: '#ffffff',
+  saveButton: {
+    backgroundColor: "#0A84FF",
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 20,
+    alignItems: "center",
+  },
+  saveButtonText: {
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '700',
-  },
-  nextButtonTextDisabled: {
-    color: '#9ca3af',
+    fontWeight: "600",
   },
 });
+
+// Lightweight calendar modal without external dependencies
+function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
+function fmt(date: Date) { return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`; }
+
+function buildMonthMatrix(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const startDay = (first.getDay() + 6) % 7; // make Monday=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const rows: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+  return rows;
+}
+
+type CalProps = {
+  visible: boolean;
+  initialDate?: string;
+  onClose: () => void;
+  onSelect: (dateISO: string) => void;
+};
+
+function CalendarModal({ visible, initialDate, onClose, onSelect }: CalProps) {
+  const base = initialDate ? new Date(initialDate) : new Date();
+  const [year, setYear] = React.useState(base.getFullYear());
+  const [month, setMonth] = React.useState(base.getMonth());
+  const weeks = buildMonthMatrix(year, month);
+
+  const prevMonth = () => {
+    const m = month - 1;
+    if (m < 0) { setMonth(11); setYear((y) => y - 1); } else setMonth(m);
+  };
+  const nextMonth = () => {
+    const m = month + 1;
+    if (m > 11) { setMonth(0); setYear((y) => y + 1); } else setMonth(m);
+  };
+
+  if (!visible) return null;
+  return (
+    <View style={calStyles.backdrop}>
+      <View style={calStyles.modal}>
+        <View style={calStyles.headerRow}>
+          <TouchableOpacity onPress={prevMonth} style={calStyles.navBtn}>
+            <Ionicons name="chevron-back" size={18} color="#111827" />
+          </TouchableOpacity>
+          <Text style={calStyles.title}>{pad(month + 1)}/{year}</Text>
+          <TouchableOpacity onPress={nextMonth} style={calStyles.navBtn}>
+            <Ionicons name="chevron-forward" size={18} color="#111827" />
+          </TouchableOpacity>
+        </View>
+        <View style={calStyles.weekHeader}>
+          {["L", "M", "M", "J", "V", "S", "D"].map((d, idx) => (
+            <Text key={idx} style={calStyles.weekCell}>{d}</Text>
+          ))}
+        </View>
+        {weeks.map((row, i) => (
+          <View key={i} style={calStyles.row}>
+            {row.map((cell, j) => (
+              <TouchableOpacity
+                key={j}
+                style={[calStyles.cell, !cell && calStyles.cellEmpty]}
+                disabled={!cell}
+                onPress={() => cell && onSelect(fmt(cell))}
+              >
+                <Text style={calStyles.cellText}>{cell ? cell.getDate() : ""}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+        <TouchableOpacity style={calStyles.closeBtn} onPress={onClose}>
+          <Text style={calStyles.closeBtnText}>Fermer</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const calStyles = StyleSheet.create({
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal: {
+    width: "88%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  navBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  weekHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  weekCell: {
+    width: 36,
+    textAlign: "center",
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  cell: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cellEmpty: {
+    backgroundColor: "transparent",
+  },
+  cellText: {
+    color: "#111827",
+    fontWeight: "600",
+  },
+  closeBtn: {
+    marginTop: 8,
+    alignSelf: "flex-end",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#0A84FF",
+  },
+  closeBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+});
+
+
