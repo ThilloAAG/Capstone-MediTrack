@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { registerUser } from '../../src/services/auth'; // <-- adapte le chemin
+import { registerUser } from '../../src/services/auth'; 
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState<string>('');
