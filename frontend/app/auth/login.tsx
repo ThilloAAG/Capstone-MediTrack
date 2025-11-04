@@ -1,21 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  TextInput, 
+  KeyboardAvoidingView, 
+  Platform, 
+  Alert, 
+  ActivityIndicator 
+} from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { registerUser, loginUser } from '../../src/services/auth';
-import { Alert , ActivityIndicator} from 'react-native';
-
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
   const [errors, setErrors] = useState<{email?: string; password?: string; form?: string}>({});
   const [loading, setLoading] = useState(false);
 
-  
   const validate = () => {
     const e: any = {};
   
@@ -33,28 +39,33 @@ export default function LoginScreen() {
     return Object.keys(e).length === 0;
   };
 
-  const handleLogin = async () => 
-    { if (!validate()) return; setLoading(true);
-       try { await loginUser(email, password); 
-        // ➜ appelle Firebase via ton service 
-        router.push('/onboarding/welcome'); } catch (err: any) { 
-          // message du service (ex: "Identifiants incorrects.") 
-          setErrors((prev) => ({ ...prev, form: err?.message ?? "Erreur de connexion." })); 
-          // ou 
-          Alert.alert('Connexion', err?.message ?? 'Erreur de connexion'); 
-          setEmail('');
-          setPassword('');
-        } 
-          finally { setLoading(false); } };
+  const handleLogin = async () => {
+    if (!validate()) return;
+    setLoading(true);
 
+    try {
+      const cred = await loginUser(email, password);
+      console.log("✅ Logged in:", cred.user.uid);
 
+      // Wait briefly for auth persistence before redirect
+      setTimeout(() => {
+        router.replace('/onboarding/welcome');
+      }, 500);
 
-
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setErrors((prev) => ({ ...prev, form: err?.message ?? "Erreur de connexion." }));
+      Alert.alert('Connexion', err?.message ?? 'Erreur de connexion');
+      setEmail('');
+      setPassword('');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = () => {
     Alert.alert('Bientôt', "Google Sign-In sera branché ensuite 😉");
   };
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,12 +109,16 @@ export default function LoginScreen() {
               </View>
 
               <TouchableOpacity 
-                style={styles.loginButton}
-                
+                style={[styles.loginButton, loading && { opacity: 0.6 }]}
                 onPress={handleLogin}
+                disabled={loading}
                 activeOpacity={0.8}
               >
-                <Text style={styles.loginButtonText}>Log In</Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Log In</Text>
+                )}
               </TouchableOpacity>
 
               {/* Divider */}
@@ -130,7 +145,7 @@ export default function LoginScreen() {
         <View style={styles.footer}>
           <TouchableOpacity onPress={() => router.push('/auth/signupscreenUpdated')} activeOpacity={0.8}>
             <Text style={styles.footerText}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Text style={styles.createAccountText}>Create Account</Text>
             </Text>
           </TouchableOpacity>

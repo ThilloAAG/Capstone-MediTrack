@@ -1,4 +1,4 @@
-// src/firebase.ts (ou .js)
+// src/firebase.js
 import { Platform } from "react-native";
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -9,19 +9,16 @@ const firebaseConfig = {
   apiKey: "AIzaSyBLxkoXNxYLcV8SLyEzxCAq3vtePw1xKMY",
   authDomain: "meditrack-f6141.firebaseapp.com",
   projectId: "meditrack-f6141",
-  storageBucket: "meditrack-f6141.firebasestorage.app",
+  storageBucket: "meditrack-f6141.appspot.com", 
   messagingSenderId: "326160252762",
   appId: "1:326160252762:web:36a594f1620d2c1a8a7d63",
   measurementId: "G-RBWVGLJL14",
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const db = getFirestore(app);
 
-const db = getFirestore(app);
-
-const auth =
+export const auth =
   Platform.OS === "web"
-    ? getAuth(app) // Web
-    : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) }); // iOS/Android
-
-export { app, db, auth };
+    ? getAuth(app)
+    : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
