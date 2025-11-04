@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +14,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useLocalSearchParams } from "expo-router";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+
 
 
 export default function NewPrescriptionScreen() {
@@ -31,14 +34,56 @@ export default function NewPrescriptionScreen() {
   const [endPickerOpen, setEndPickerOpen] = useState(false);
   const [time, setTime] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
+  
+
 
 
   const handleClose = () => {
     router.back();
   };
 
+  useEffect(() => {
+  const fetchPrescription = async () => {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid || !id) {
+        setLoading(false);
+        return;
+      }
+
+      const ref = doc(db, "prescriptions", uid, "userPrescriptions", id);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        const [d, u] = (data.dosage || "").split(" ");
+        setMedicationName(data.medicationName || "");
+        setDose(parseInt(d) || 0);
+        setUnit(u || "mg");
+        setFrequency(data.frequency || "");
+        setStartDate(data.startDate || "");
+        setEndDate(data.endDate || "");
+        setNotes(data.notes || "");
+        setTime(data.time || ""); // si tu as ajouté time
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Erreur", "Impossible de charger la prescription.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchPrescription();
+}, [id]);
+
+
   const handleSavePrescription = async () => {
     const user = auth.currentUser;
+    
+    const ref = doc(db, "prescriptions", user.uid, "userPrescriptions", id);
     if (!user) {
       Alert.alert("Erreur", "Utilisateur non connecté");
       return;
@@ -54,8 +99,7 @@ export default function NewPrescriptionScreen() {
     }
 
     try {
-      await addDoc(collection(db, "prescriptions", user.uid, "userPrescriptions"), {
-        userId: user.uid, 
+      await updateDoc(ref, {
         medicationName,
         dosage: dosageValue,
         frequency,
@@ -66,7 +110,7 @@ export default function NewPrescriptionScreen() {
         createdAt: new Date(),
       });
 
-      Alert.alert("Succès", "Prescription ajoutée !");
+      Alert.alert("Succès", "Prescription modifiée !");
       router.push("/prescriptions");
     } catch (error) {
       console.error(error);

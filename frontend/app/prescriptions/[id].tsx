@@ -6,6 +6,12 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase';
 import { doc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import {
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+} from "react-native";
 
 type Prescription = {
   id: string;
@@ -64,28 +70,34 @@ useEffect(() => {
     router.back();
   };
 
-  const handleDelete = () => {
-    if (!isOwner || !docId) return;
-    Alert.alert(
-      'Supprimer',
-      'Confirmer la suppression de cette prescription ? Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'prescriptions', docId));
-              router.back();
-            } catch (e) {
-              Alert.alert('Erreur', "Impossible de supprimer la prescription.");
-            }
-          },
+const handleDelete = () => {
+
+
+  Alert.alert(
+    'Supprimer',
+    'Confirmer la suppression de cette prescription ? Cette action est irréversible.',
+    [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const uid = auth.currentUser?.uid;
+            if (!uid) throw new Error('Utilisateur non connecté');
+
+            await deleteDoc(doc(db, 'prescriptions', uid, 'userPrescriptions', docId));
+            router.back();
+          } catch (e) {
+            console.error('Erreur Firestore:', e);
+            Alert.alert('Erreur', "Impossible de supprimer la prescription.");
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
+
 
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
@@ -177,6 +189,19 @@ useEffect(() => {
               {/* Actions */}
               <View style={styles.actionButtons}>
                 <View style={styles.secondaryActions}>
+                  <TouchableOpacity
+              style={styles.editButton}
+              onPress={() =>
+              router.push({
+              pathname: '/prescriptions/edit-prescriptions',
+             params: { id: docId },
+            })
+            }
+            activeOpacity={0.8}
+>
+            <Text style={styles.editButtonText}>Modifier</Text>
+              </TouchableOpacity>
+
                   <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.8}>
                     <Text style={styles.deleteButtonText}>Supprimer</Text>
                   </TouchableOpacity>
