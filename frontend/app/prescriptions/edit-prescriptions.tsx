@@ -129,9 +129,9 @@ export default function NewPrescriptionScreen() {
           onPress={handleClose}
           activeOpacity={0.8}
         >
-          <Ionicons name="close" size={28} color="#111827" />
+         <Ionicons name="chevron-back" size={28} color="#0A84FF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nouvelle Prescription</Text>
+        <Text style={styles.headerTitle}>Modifier Prescription</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -235,7 +235,7 @@ export default function NewPrescriptionScreen() {
 
         {/* Heure de prise (optionnelle) */}
 <View style={styles.card}>
-  <Text style={styles.cardTitle}>Heure de prise (optionnelle)</Text>
+  <Text style={styles.cardTitle}>Heure de prise </Text>
   <TouchableOpacity
     style={styles.dateButton}
     onPress={() => setShowTimePicker(true)}

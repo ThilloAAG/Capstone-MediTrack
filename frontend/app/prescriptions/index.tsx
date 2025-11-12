@@ -68,15 +68,27 @@ export default function PrescriptionsScreen() {
         break;
     }
   };
+  const handleBack = () => {
+  router.back(); // ⬅️ retourne à la page précédente
+};
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <View style={styles.wrapper}>
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Prescriptions</Text>
-          </View>
+         {/* HEADER avec flèche de retour */}
+<View style={styles.header}>
+  <TouchableOpacity
+    style={styles.backButton}
+    onPress={handleBack}
+    activeOpacity={0.8}
+  >
+    <Ionicons name="chevron-back" size={28} color="#0A84FF" />
+  </TouchableOpacity>
+  <Text style={styles.headerTitle}>Prescriptions</Text>
+</View>
+
 
           {/* Liste des prescriptions (par utilisateur) */}
           <View style={styles.prescriptionsContainer}>
@@ -193,18 +205,35 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 120,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 16,
-    backgroundColor: "#f7f8fa80",
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#000000",
-    textAlign: "left",
-  },
+header: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  paddingTop: 48,
+  paddingBottom: 16,
+  backgroundColor: "#f7f8fa80",
+  position: "relative",
+},
+backButton: {
+  position: "absolute",
+  left: 16,
+  top: 48,
+  padding: 8,
+  borderRadius: 50,
+  backgroundColor: "#ffffff",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 3,
+  elevation: 4,
+},
+headerTitle: {
+  fontSize: 28,
+  fontWeight: "700",
+  color: "#000",
+  textAlign: "center",
+},
+
   prescriptionsContainer: {
     paddingHorizontal: 16,
   },

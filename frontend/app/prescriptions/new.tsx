@@ -45,10 +45,10 @@ export default function NewPrescriptionScreen() {
     }
 
     const dosageValue = `${dose} ${unit}`;
-    if (!medicationName || !dosageValue || !frequency || !startDate) {
+    if (!medicationName || !dosageValue || !frequency || !startDate || !time) {
       Alert.alert(
         "Champs manquants",
-        "Nom, dosage, fréquence, date de début sont obligatoires."
+        "Nom, dosage, fréquence, date de début, heure sont obligatoires."
       );
       return;
     }
@@ -191,7 +191,7 @@ export default function NewPrescriptionScreen() {
 
         {/* Heure de prise (optionnelle) */}
 <View style={styles.card}>
-  <Text style={styles.cardTitle}>Heure de prise (optionnelle)</Text>
+  <Text style={styles.cardTitle}>Heure de prise</Text>
   <TouchableOpacity
     style={styles.dateButton}
     onPress={() => setShowTimePicker(true)}

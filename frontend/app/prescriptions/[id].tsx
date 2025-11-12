@@ -133,7 +133,7 @@ const handleDelete = () => {
             onPress={handleBack}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+            <Ionicons name="chevron-back" size={28} color="#0A84FF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Prescription Details</Text>
           <View style={styles.spacer} />

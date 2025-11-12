@@ -22,23 +22,28 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<{email?: string; password?: string; form?: string}>({});
   const [loading, setLoading] = useState(false);
 
+<<<<<<< HEAD
+=======
+  // ✅ Validation logic
+>>>>>>> 5de7ca9 (fix:language login and fix prescription page)
   const validate = () => {
     const e: any = {};
   
     if (!email.trim()) {
-      e.email = "Email requis.";
+      e.email = "Email is required.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      e.email = "Adresse email invalide.";
+      e.email = "Invalid email address.";
     }
   
     if (!password.trim()) {
-      e.password = "Mot de passe requis.";
+      e.password = "Password is required.";
     }
   
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
+<<<<<<< HEAD
   const handleLogin = async () => {
     if (!validate()) return;
     setLoading(true);
@@ -56,17 +61,50 @@ export default function LoginScreen() {
       console.error("Login error:", err);
       setErrors((prev) => ({ ...prev, form: err?.message ?? "Erreur de connexion." }));
       Alert.alert('Connexion', err?.message ?? 'Erreur de connexion');
+=======
+  // ✅ Smart login handling (onboarding for first login)
+  const handleLogin = async () => {
+    if (!validate()) return;
+    setLoading(true);
+
+    try {
+      const userCredential = await loginUser(email, password);
+      const user = userCredential.user;
+
+      const firstLogin =
+        new Date(user.metadata.creationTime).getTime() ===
+        new Date(user.metadata.lastSignInTime).getTime();
+
+      if (firstLogin) {
+        router.replace('/onboarding/welcome');
+      } else {
+        router.replace('/dashboard');
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      Alert.alert('Login failed', err?.message ?? 'Unable to connect.');
+      setErrors((prev) => ({ ...prev, form: err?.message ?? "Connection error." }));
+>>>>>>> 5de7ca9 (fix:language login and fix prescription page)
       setEmail('');
       setPassword('');
     } finally {
       setLoading(false);
     }
+<<<<<<< HEAD
   };
 
   const handleGoogleSignIn = () => {
     Alert.alert('Bientôt', "Google Sign-In sera branché ensuite 😉");
   };
 
+=======
+  };
+
+  const handleGoogleSignIn = () => {
+    Alert.alert('Coming soon', "Google Sign-In integration will be added later 😉");
+  };
+
+>>>>>>> 5de7ca9 (fix:language login and fix prescription page)
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
@@ -108,6 +146,7 @@ export default function LoginScreen() {
                 />
               </View>
 
+              {/* ✅ Login Button with loader */}
               <TouchableOpacity 
                 style={[styles.loginButton, loading && { opacity: 0.6 }]}
                 onPress={handleLogin}
@@ -143,9 +182,16 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={() => router.push('/auth/signupscreenUpdated')} activeOpacity={0.8}>
+          <TouchableOpacity 
+            onPress={() => router.push('/auth/signupscreenUpdated')} 
+            activeOpacity={0.8}
+          >
             <Text style={styles.footerText}>
+<<<<<<< HEAD
               Don&apos;t have an account?{' '}
+=======
+              Don’t have an account?{' '}
+>>>>>>> 5de7ca9 (fix:language login and fix prescription page)
               <Text style={styles.createAccountText}>Create Account</Text>
             </Text>
           </TouchableOpacity>
@@ -208,10 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     shadowColor: '#13a4ec',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
