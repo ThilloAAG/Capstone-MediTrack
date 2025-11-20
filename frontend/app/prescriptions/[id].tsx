@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase';
-import { doc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, deleteDoc, collection, 
+  getDocs } from 'firebase/firestore';
 
 type Prescription = {
   id: string;
@@ -56,31 +57,51 @@ export default function PrescriptionDetailScreen() {
     router.back();
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Prescription',
-      'Are you sure you want to delete this prescription? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const uid = auth.currentUser?.uid;
-              if (!uid) throw new Error('User not logged in');
+const handleDelete = () => {
+  Alert.alert(
+    'Delete Prescription',
+    'Are you sure you want to delete this prescription? This action cannot be undone.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const uid = auth.currentUser?.uid;
+            if (!uid) throw new Error('User not logged in');
 
-              await deleteDoc(doc(db, 'prescriptions', uid, 'userPrescriptions', docId));
-              router.back();
-            } catch (e) {
-              console.error('Firestore Error:', e);
-              Alert.alert('Error', 'Unable to delete prescription.');
+            // 1. DELETE PRESCRIPTION
+            await deleteDoc(
+              doc(db, 'prescriptions', uid, 'userPrescriptions', docId)
+            );
+
+            // 2. DELETE ALL LINKED PREFERENCES
+            const prefsSnapshot = await getDocs(
+              collection(db, `notificationPreferences/${uid}/preferences`)
+            );
+
+            const prefsToDelete = prefsSnapshot.docs.filter(
+              (d) => d.data().prescriptionId === docId
+            );
+
+            for (const pref of prefsToDelete) {
+              await deleteDoc(
+                doc(db, `notificationPreferences/${uid}/preferences`, pref.id)
+              );
             }
-          },
+
+            router.back();
+          } catch (e) {
+            console.error('Firestore Error:', e);
+            Alert.alert('Error', 'Unable to delete prescription.');
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
+
 
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {

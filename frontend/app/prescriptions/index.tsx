@@ -84,9 +84,10 @@ export default function PrescriptionsScreen() {
     onPress={handleBack}
     activeOpacity={0.8}
   >
-    <Ionicons name="chevron-back" size={28} color="#0A84FF" />
+    <Ionicons name="arrow-back" size={24} color="#111618" />
   </TouchableOpacity>
   <Text style={styles.headerTitle}>Prescriptions</Text>
+  
 </View>
 
 
@@ -205,34 +206,29 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 120,
   },
-header: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  paddingTop: 48,
-  paddingBottom: 16,
-  backgroundColor: "#f7f8fa80",
-  position: "relative",
-},
-backButton: {
-  position: "absolute",
-  left: 16,
-  top: 48,
-  padding: 8,
-  borderRadius: 50,
-  backgroundColor: "#ffffff",
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.2,
-  shadowRadius: 3,
-  elevation: 4,
-},
-headerTitle: {
-  fontSize: 28,
-  fontWeight: "700",
-  color: "#000",
-  textAlign: "center",
-},
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#f6f7f8cc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f3f4',
+  },
+  backButton: {
+    padding: 4,
+  },
+ headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111618',
+    flex: 1,
+    textAlign: 'center',
+    paddingRight: 32,
+  },
+  spacer: {
+    width: 32,
+  },
 
   prescriptionsContainer: {
     paddingHorizontal: 16,

@@ -64,6 +64,7 @@ export default function NewPrescriptionScreen() {
         time,
         notes,
         createdAt: new Date(),
+    
       });
 
       Alert.alert("Success", "Prescription added!");
