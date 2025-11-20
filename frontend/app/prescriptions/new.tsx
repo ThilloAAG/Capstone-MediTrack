@@ -87,13 +87,13 @@ export default function NewPrescriptionScreen() {
         >
           <Ionicons name="close" size={28} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nouvelle Prescription</Text>
+        <Text style={styles.headerTitle}>New Prescription</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.form}>
         {/* Nom du médicament */}
-        <Text style={styles.label}>Nom du médicament</Text>
+        <Text style={styles.label}>Medication Name</Text>
         <TextInput
           placeholder="Ex : Paracetamol"
           placeholderTextColor="#9CA3AF"
@@ -143,7 +143,7 @@ export default function NewPrescriptionScreen() {
 
         {/* Fréquence avec raccourcis */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Fréquence</Text>
+          <Text style={styles.cardTitle}>Frequency</Text>
           <View style={styles.chipsWrap}>
             {["1/day", "2/day", "3/day", "4/day", "every 8h"].map((f) => (
               <TouchableOpacity
@@ -168,19 +168,19 @@ export default function NewPrescriptionScreen() {
         {/* Période (avec calendrier) */}
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.cardTitle}>Période</Text>
+            <Text style={styles.cardTitle}>Period</Text>
           </View>
 
           <View style={styles.dateRow}> 
             <View style={styles.dateField}>
-              <Text style={styles.inputLabel}>Début</Text>
+              <Text style={styles.inputLabel}>Start</Text>
               <TouchableOpacity style={styles.dateButton} onPress={() => setStartPickerOpen(true)}>
                 <Ionicons name="calendar" size={16} color="#111827" />
                 <Text style={styles.dateButtonText}>{startDate || "select a date"}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.dateField}>
-              <Text style={styles.inputLabel}>Fin</Text>
+              <Text style={styles.inputLabel}>End</Text>
               <TouchableOpacity style={styles.dateButton} onPress={() => setEndPickerOpen(true)}>
                 <Ionicons name="calendar" size={16} color="#111827" />
                 <Text style={styles.dateButtonText}>{endDate || "select a date"}</Text>
@@ -191,7 +191,7 @@ export default function NewPrescriptionScreen() {
 
         {/* Heure de prise (optionnelle) */}
 <View style={styles.card}>
-  <Text style={styles.cardTitle}>Heure de prise</Text>
+  <Text style={styles.cardTitle}>Time of Intake</Text>
   <TouchableOpacity
     style={styles.dateButton}
     onPress={() => setShowTimePicker(true)}
@@ -238,7 +238,7 @@ export default function NewPrescriptionScreen() {
           onPress={handleSavePrescription}
           activeOpacity={0.8}
         >
-          <Text style={styles.saveButtonText}>Enregistrer</Text>
+          <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </ScrollView>
       {/* Calendriers modaux */}
