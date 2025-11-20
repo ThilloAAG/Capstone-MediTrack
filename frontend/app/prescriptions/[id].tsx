@@ -6,12 +6,6 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../src/firebase';
 import { doc, onSnapshot, deleteDoc } from 'firebase/firestore';
-import {
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Platform,
-} from "react-native";
 
 type Prescription = {
   id: string;
@@ -31,73 +25,62 @@ export default function PrescriptionDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
 
-useEffect(() => {
-  // 🔹 D’abord, récupère l’utilisateur courant
-  const uid = auth.currentUser?.uid;
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
 
-  // 🔹 Si on n’a pas d’utilisateur ou pas d’ID de prescription, on sort
-  if (!docId || !uid) {
-    setLoading(false);
-    return;
-  }
-
-  // 🔹 On construit la bonne référence Firestore
-  const ref = doc(db, 'prescriptions', uid, 'userPrescriptions', docId);
-
-  // 🔹 On écoute le document
-  const unsub = onSnapshot(ref, (snap) => {
-    if (!snap.exists()) {
-      setPrescription(null);
-      setIsOwner(false);
+    if (!docId || !uid) {
       setLoading(false);
       return;
     }
 
-    // ✅ On récupère les données du document
-    const data = { id: snap.id, ...(snap.data() as any) } as Prescription;
-    setPrescription(data);
+    const ref = doc(db, 'prescriptions', uid, 'userPrescriptions', docId);
 
-    // 🔹 On vérifie si l’utilisateur connecté est bien le propriétaire
-    setIsOwner(true);
-    setLoading(false);
-  });
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setPrescription(null);
+        setIsOwner(false);
+        setLoading(false);
+        return;
+      }
 
-  // 🔹 Nettoyage à la fin du cycle
-  return unsub;
-}, [docId]);
+      const data = { id: snap.id, ...(snap.data() as any) } as Prescription;
+      setPrescription(data);
+      setIsOwner(true);
+      setLoading(false);
+    });
+
+    return unsub;
+  }, [docId]);
 
   const handleBack = () => {
     router.back();
   };
 
-const handleDelete = () => {
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Prescription',
+      'Are you sure you want to delete this prescription? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const uid = auth.currentUser?.uid;
+              if (!uid) throw new Error('User not logged in');
 
-
-  Alert.alert(
-    'Supprimer',
-    'Confirmer la suppression de cette prescription ? Cette action est irréversible.',
-    [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const uid = auth.currentUser?.uid;
-            if (!uid) throw new Error('Utilisateur non connecté');
-
-            await deleteDoc(doc(db, 'prescriptions', uid, 'userPrescriptions', docId));
-            router.back();
-          } catch (e) {
-            console.error('Erreur Firestore:', e);
-            Alert.alert('Erreur', "Impossible de supprimer la prescription.");
-          }
+              await deleteDoc(doc(db, 'prescriptions', uid, 'userPrescriptions', docId));
+              router.back();
+            } catch (e) {
+              console.error('Firestore Error:', e);
+              Alert.alert('Error', 'Unable to delete prescription.');
+            }
+          },
         },
-      },
-    ]
-  );
-};
-
+      ]
+    );
+  };
 
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
@@ -116,8 +99,6 @@ const handleDelete = () => {
       case 'profile':
         router.push('/profile');
         break;
-      default:
-        break;
     }
   };
 
@@ -126,7 +107,8 @@ const handleDelete = () => {
       <StatusBar style="dark" />
       
       <View style={styles.wrapper}>
-        {/* Header */}
+
+        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -139,17 +121,17 @@ const handleDelete = () => {
           <View style={styles.spacer} />
         </View>
 
-        {/* Main Content */}
+        {/* MAIN CONTENT */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
           {loading ? (
-            <Text style={{ color: '#6b7280', textAlign: 'center', padding: 20 }}>Chargement…</Text>
+            <Text style={styles.loadingText}>Loading…</Text>
           ) : !prescription ? (
-            <Text style={{ color: '#ef4444', textAlign: 'center', padding: 20 }}>Prescription introuvable.</Text>
+            <Text style={styles.errorText}>Prescription not found.</Text>
           ) : !isOwner ? (
-            <Text style={{ color: '#ef4444', textAlign: 'center', padding: 20 }}>Accès non autorisé.</Text>
+            <Text style={styles.errorText}>Unauthorized access.</Text>
           ) : (
             <>
-              {/* Medication Header */}
+              {/* MEDICATION HEADER */}
               <View style={styles.medicationHeader}>
                 <View style={styles.medicationImageContainer}>
                   <Image
@@ -159,26 +141,27 @@ const handleDelete = () => {
                   />
                 </View>
                 <View style={styles.medicationInfo}>
-                  <Text style={styles.medicationName}>{prescription.medicationName || 'Sans nom'}</Text>
+                  <Text style={styles.medicationName}>{prescription.medicationName || 'Unnamed'}</Text>
                   <Text style={styles.medicationDosage}>{prescription.dosage || '-'}</Text>
                 </View>
               </View>
 
-              {/* Details Grid */}
+              {/* DETAILS GRID */}
               <View style={styles.detailsGrid}>
                 <View style={styles.detailCard}>
-                  <Text style={styles.detailLabel}>Fréquence</Text>
+                  <Text style={styles.detailLabel}>Frequency</Text>
                   <Text style={styles.detailValue}>{prescription.frequency || '-'}</Text>
                 </View>
                 <View style={styles.detailCard}>
-                  <Text style={styles.detailLabel}>Période</Text>
+                  <Text style={styles.detailLabel}>Period</Text>
                   <Text style={styles.detailValue}>
-                    {(prescription.startDate || '') + (prescription.endDate ? ` → ${prescription.endDate}` : '')}
+                    {(prescription.startDate || '') +
+                      (prescription.endDate ? ` → ${prescription.endDate}` : '')}
                   </Text>
                 </View>
               </View>
 
-              {/* Notes */}
+              {/* NOTES */}
               {!!prescription.notes && (
                 <View style={styles.notesCard}>
                   <Text style={styles.notesLabel}>Notes</Text>
@@ -186,32 +169,38 @@ const handleDelete = () => {
                 </View>
               )}
 
-              {/* Actions */}
+              {/* ACTION BUTTONS */}
               <View style={styles.actionButtons}>
                 <View style={styles.secondaryActions}>
-                  <TouchableOpacity
-              style={styles.editButton}
-              onPress={() =>
-              router.push({
-              pathname: '/prescriptions/edit-prescriptions',
-             params: { id: docId },
-            })
-            }
-            activeOpacity={0.8}
->
-            <Text style={styles.editButtonText}>Modifier</Text>
-              </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.8}>
-                    <Text style={styles.deleteButtonText}>Supprimer</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/prescriptions/edit-prescriptions',
+                        params: { id: docId },
+                      })
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
                   </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={handleDelete}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  </TouchableOpacity>
+
                 </View>
               </View>
             </>
           )}
         </ScrollView>
 
-        {/* Bottom Navigation */}
+        {/* BOTTOM NAVIGATION */}
         <View style={styles.bottomNavigation}>
           <TouchableOpacity 
             style={styles.navItem}
@@ -258,19 +247,18 @@ const handleDelete = () => {
             <Text style={styles.navText}>Profile</Text>
           </TouchableOpacity>
         </View>
+
       </View>
     </SafeAreaView>
   );
 }
 
+/* ---------- Styles ----------- */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f6f7f8',
-  },
-  wrapper: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#f6f7f8' },
+  wrapper: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,9 +269,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  backButton: {
-    padding: 4,
-  },
+  backButton: { padding: 4 },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -292,43 +278,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingRight: 32,
   },
-  spacer: {
-    width: 32,
-  },
-  main: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 24,
-  },
+  spacer: { width: 32 },
+
+  main: { flex: 1, paddingHorizontal: 16, paddingTop: 24 },
+
+  loadingText: { color: '#6b7280', textAlign: 'center', padding: 20 },
+  errorText: { color: '#ef4444', textAlign: 'center', padding: 20 },
+
   medicationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
     marginBottom: 24,
   },
+
   medicationImageContainer: {
     width: 64,
     height: 64,
     borderRadius: 24,
     overflow: 'hidden',
   },
-  medicationImage: {
-    width: '100%',
-    height: '100%',
-  },
-  medicationInfo: {
-    flex: 1,
-  },
+  medicationImage: { width: '100%', height: '100%' },
+
+  medicationInfo: { flex: 1 },
   medicationName: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1f2937',
     marginBottom: 4,
   },
-  medicationDosage: {
-    fontSize: 16,
-    color: '#64748b',
-  },
+  medicationDosage: { fontSize: 16, color: '#64748b' },
+
   detailsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -354,6 +334,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
   },
+
   notesCard: {
     backgroundColor: '#ffffff',
     padding: 16,
@@ -373,34 +354,10 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 22,
   },
-  actionButtons: {
-    gap: 12,
-    marginBottom: 32,
-  },
-  primaryActionButton: {
-    backgroundColor: '#13a4ec',
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#13a4ec',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  primaryActionText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+
+  actionButtons: { gap: 12, marginBottom: 32 },
+  secondaryActions: { flexDirection: 'row', gap: 12 },
+
   editButton: {
     flex: 1,
     backgroundColor: '#13a4ec20',
@@ -414,6 +371,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+
   deleteButton: {
     flex: 1,
     backgroundColor: '#ef444410',
@@ -427,6 +385,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+
   bottomNavigation: {
     flexDirection: 'row',
     backgroundColor: '#ffffffcc',

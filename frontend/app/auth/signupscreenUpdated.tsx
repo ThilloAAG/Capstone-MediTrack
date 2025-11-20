@@ -1,3 +1,5 @@
+// src/screens/SignupForm.tsx (translated to English)
+
 import React, { useState } from 'react';
 import {
   View,
@@ -13,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { registerUser } from '../../src/services/auth'; 
+import { registerUser } from '../../src/services/auth';
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState<string>('');
@@ -27,23 +29,23 @@ export default function SignupForm() {
 
   const validate = (): boolean => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-      setError('Tous les champs sont requis.');
+      setError('All fields are required.');
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim().toLowerCase())) {
-      setError("L'adresse email est invalide.");
+      setError('Invalid email address.');
       return false;
     }
 
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères.');
+      setError('Password must be at least 6 characters.');
       return false;
     }
 
     if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.');
+      setError('Passwords do not match.');
       return false;
     }
 
@@ -58,14 +60,14 @@ export default function SignupForm() {
     try {
       const name = `${firstName.trim()} ${lastName.trim()}`.trim();
       const user = await registerUser({ email: email.trim(), password, name, role });
-      console.log('Création réussie ✅', user);
+      console.log('Account successfully created ✅', user);
       router.replace('/onboarding/welcome');
     } catch (e: any) {
-      console.log('Erreur ⚠️', e?.message);
-      Alert.alert("Erreur d'inscription", e?.message || 'Erreur inconnue');
-      setError(e?.message || 'Erreur inconnue');
-      // Optionnel: reset de certains champs
-      setPassword(''); setConfirmPassword('');
+      console.log('Error ⚠️', e?.message);
+      Alert.alert('Signup Error', e?.message || 'Unknown error');
+      setError(e?.message || 'Unknown error');
+      setPassword('');
+      setConfirmPassword('');
     } finally {
       setLoading(false);
     }
@@ -79,15 +81,15 @@ export default function SignupForm() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Créer un compte</Text>
+          <Text style={styles.title}>Create an Account</Text>
 
-          {/* Prénom */}
+          {/* First Name */}
           <View style={styles.field}>
             <Text style={styles.label}>
-              Prénom <Text style={styles.required}>*</Text>
+              First Name <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
-              placeholder="Votre prénom"
+              placeholder="Your first name"
               placeholderTextColor="#64748B"
               style={styles.input}
               value={firstName}
@@ -98,13 +100,13 @@ export default function SignupForm() {
             />
           </View>
 
-          {/* Nom */}
+          {/* Last Name */}
           <View style={styles.field}>
             <Text style={styles.label}>
-              Nom <Text style={styles.required}>*</Text>
+              Last Name <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
-              placeholder="Votre nom"
+              placeholder="Your last name"
               placeholderTextColor="#64748B"
               style={styles.input}
               value={lastName}
@@ -134,13 +136,13 @@ export default function SignupForm() {
             />
           </View>
 
-          {/* Mot de passe */}
+          {/* Password */}
           <View style={styles.field}>
             <Text style={styles.label}>
-              Mot de passe <Text style={styles.required}>*</Text>
+              Password <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
-              placeholder="Au moins 6 caractères"
+              placeholder="At least 6 characters"
               placeholderTextColor="#64748B"
               style={styles.input}
               value={password}
@@ -151,13 +153,13 @@ export default function SignupForm() {
             />
           </View>
 
-          {/* Confirmation */}
+          {/* Confirm Password */}
           <View style={styles.field}>
             <Text style={styles.label}>
-              Confirmer le mot de passe <Text style={styles.required}>*</Text>
+              Confirm Password <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
-              placeholder="Retapez votre mot de passe"
+              placeholder="Re-enter your password"
               placeholderTextColor="#64748B"
               style={styles.input}
               value={confirmPassword}
@@ -168,7 +170,7 @@ export default function SignupForm() {
             />
           </View>
 
-          {/* Choix du rôle */}
+          {/* Role Selection */}
           <View style={styles.roleSelector}>
             <TouchableOpacity
               onPress={() => setRole('patient')}
@@ -187,11 +189,11 @@ export default function SignupForm() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-            <Text style={styles.buttonText}>{loading ? 'Chargement...' : 'Créer un compte'}</Text>
+            <Text style={styles.buttonText}>{loading ? 'Loading...' : 'Create Account'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.replace('/')} style={styles.back}>
-            <Text style={styles.backText}>← Retour à la connexion</Text>
+            <Text style={styles.backText}>← Back to login</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -216,7 +218,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 2,
     borderColor: 'transparent',
-    backgroundColor: '#E2E8F0', // slate-200
+    backgroundColor: '#E2E8F0',
     color: '#0f172a',
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -238,9 +240,7 @@ const styles = StyleSheet.create({
     borderColor: '#13a4ec',
     backgroundColor: 'transparent',
   },
-  activeRole: {
-    backgroundColor: '#13a4ec',
-  },
+  activeRole: { backgroundColor: '#13a4ec' },
   roleText: { color: '#13a4ec', fontWeight: '700' },
   activeRoleText: { color: '#fff' },
   errorText: { color: 'red', marginTop: 8, textAlign: 'center' },

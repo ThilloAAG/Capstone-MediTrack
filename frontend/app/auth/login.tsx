@@ -21,6 +21,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{email?: string; password?: string; form?: string}>({});
   const [loading, setLoading] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
 
   const validate = () => {
     const e: any = {};
@@ -45,17 +47,16 @@ export default function LoginScreen() {
 
     try {
       const cred = await loginUser(email, password);
-      console.log("✅ Logged in:", cred.user.uid);
+      console.log("Logged in:", cred.user.uid);
 
-      // Wait briefly for auth persistence before redirect
       setTimeout(() => {
-        router.replace('/onboarding/welcome');
+        router.replace('/dashboard');
       }, 500);
 
     } catch (err: any) {
       console.error("Login error:", err);
-      setErrors((prev) => ({ ...prev, form: err?.message ?? "Erreur de connexion." }));
-      Alert.alert('Connexion', err?.message ?? 'Erreur de connexion');
+      setErrors((prev) => ({ ...prev, form: err?.message ?? "Login error." }));
+      Alert.alert('Login', err?.message ?? 'Login error');
       setEmail('');
       setPassword('');
     } finally {
@@ -64,7 +65,7 @@ export default function LoginScreen() {
   };
 
   const handleGoogleSignIn = () => {
-    Alert.alert('Bientôt', "Google Sign-In sera branché ensuite 😉");
+    Alert.alert('Coming soon', "Google Sign-In will be added later 😉");
   };
 
   return (
@@ -96,19 +97,33 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="#64748B"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+  <View style={styles.passwordWrapper}>
+    <TextInput
+      style={styles.input}
+      placeholder="Password"
+      placeholderTextColor="#64748B"
+      value={password}
+      onChangeText={setPassword}
+      secureTextEntry={!passwordVisible}
+      autoCapitalize="none"
+      autoCorrect={false}
+    />
 
-              {/* ✅ Login Button with loader */}
+    <TouchableOpacity 
+      style={styles.eyeIcon}
+      onPress={() => setPasswordVisible(!passwordVisible)}
+    >
+      <Ionicons 
+        name={passwordVisible ? "eye-off" : "eye"} 
+        size={22} 
+        color="#64748B" 
+      />
+    </TouchableOpacity>
+  </View>
+</View>
+
+
+              {/* Login Button with loader */}
               <TouchableOpacity 
                 style={[styles.loginButton, loading && { opacity: 0.6 }]}
                 onPress={handleLogin}
@@ -149,7 +164,7 @@ export default function LoginScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.footerText}>
-              Don&apos;t have an account?{' '}
+              Don't have an account?{' '}
               <Text style={styles.createAccountText}>Create Account</Text>
             </Text>
           </TouchableOpacity>
@@ -267,4 +282,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#13a4ec',
   },
+  passwordWrapper: {
+  width: "100%",
+  position: "relative",
+  justifyContent: "center",
+},
+
+eyeIcon: {
+  position: "absolute",
+  right: 16,
+  height: "100%",
+  justifyContent: "center",
+},
+
 });

@@ -40,15 +40,15 @@ export default function NewPrescriptionScreen() {
   const handleSavePrescription = async () => {
     const user = auth.currentUser;
     if (!user) {
-      Alert.alert("Erreur", "Utilisateur non connecté");
+      Alert.alert("Error", "User not logged in.");
       return;
     }
 
     const dosageValue = `${dose} ${unit}`;
     if (!medicationName || !dosageValue || !frequency || !startDate || !time) {
       Alert.alert(
-        "Champs manquants",
-        "Nom, dosage, fréquence, date de début, heure sont obligatoires."
+        "Missing Fields",
+        "Name, dosage, frequency, start date, and time are required."
       );
       return;
     }
@@ -66,11 +66,11 @@ export default function NewPrescriptionScreen() {
         createdAt: new Date(),
       });
 
-      Alert.alert("Succès", "Prescription ajoutée !");
+      Alert.alert("Success", "Prescription added!");
       router.push("/prescriptions");
     } catch (error) {
       console.error(error);
-      Alert.alert("Erreur", "Impossible d'ajouter la prescription.");
+      Alert.alert("Error", "Unable to save the prescription.");
     }
   };
 
@@ -95,7 +95,7 @@ export default function NewPrescriptionScreen() {
         {/* Nom du médicament */}
         <Text style={styles.label}>Nom du médicament</Text>
         <TextInput
-          placeholder="Ex : Paracétamol"
+          placeholder="Ex : Paracetamol"
           placeholderTextColor="#9CA3AF"
           style={styles.input}
           value={medicationName}
@@ -145,7 +145,7 @@ export default function NewPrescriptionScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Fréquence</Text>
           <View style={styles.chipsWrap}>
-            {["1/jour", "2/jour", "3/jour", "4/jour", "Toutes 8h"].map((f) => (
+            {["1/day", "2/day", "3/day", "4/day", "every 8h"].map((f) => (
               <TouchableOpacity
                 key={f}
                 style={[styles.chip, frequency === f && styles.chipActive]}
@@ -157,7 +157,7 @@ export default function NewPrescriptionScreen() {
             ))}
           </View>
           <TextInput
-            placeholder="Ex : 2 fois par jour"
+            placeholder="Ex : 2 times per day"
             placeholderTextColor="#9CA3AF"
             style={styles.input}
             value={frequency}
@@ -176,14 +176,14 @@ export default function NewPrescriptionScreen() {
               <Text style={styles.inputLabel}>Début</Text>
               <TouchableOpacity style={styles.dateButton} onPress={() => setStartPickerOpen(true)}>
                 <Ionicons name="calendar" size={16} color="#111827" />
-                <Text style={styles.dateButtonText}>{startDate || "Choisir une date"}</Text>
+                <Text style={styles.dateButtonText}>{startDate || "select a date"}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.dateField}>
               <Text style={styles.inputLabel}>Fin</Text>
               <TouchableOpacity style={styles.dateButton} onPress={() => setEndPickerOpen(true)}>
                 <Ionicons name="calendar" size={16} color="#111827" />
-                <Text style={styles.dateButtonText}>{endDate || "Choisir une date"}</Text>
+                <Text style={styles.dateButtonText}>{endDate || "select a date"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -198,7 +198,7 @@ export default function NewPrescriptionScreen() {
   >
     <Ionicons name="time-outline" size={16} color="#111827" />
     <Text style={styles.dateButtonText}>
-      {time || "Choisir une heure"}
+      {time || "select an  une hour"}
     </Text>
   </TouchableOpacity>
 </View>
@@ -224,7 +224,7 @@ export default function NewPrescriptionScreen() {
         {/* Notes */}
         <Text style={styles.label}>Notes</Text>
         <TextInput
-          placeholder="Ex : À prendre après le repas"
+          placeholder="Ex : to take after a meal"
           placeholderTextColor="#9CA3AF"
           style={[styles.input, styles.textArea]}
           value={notes}
