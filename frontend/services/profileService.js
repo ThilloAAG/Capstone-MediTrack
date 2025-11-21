@@ -1,25 +1,24 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../src/firebase";
 
-
-export const getUserProfile = async (userId) => {
+/** Récupère le profil utilisateur */
+export const getUserProfile = async (uid) => {
   try {
-    const userRef = doc(db, "users", userId);
-    const docSnap = await getDoc(userRef);
-    return docSnap.exists() ? docSnap.data() : null;
-  } catch (error) {
-    console.error("❌ Error fetching user profile:", error);
-    throw error;
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    return null;
   }
 };
 
-
-export const updateUserProfile = async (userId, data) => {
+/** Met à jour les infos utilisateur */
+export const updateUserProfile = async (uid, data) => {
   try {
-    const userRef = doc(db, "users", userId);
-    await setDoc(userRef, data, { merge: true });
-  } catch (error) {
-    console.error("❌ Error updating user profile:", error);
-    throw error;
+    const ref = doc(db, "users", uid);
+    await updateDoc(ref, data);
+  } catch (err) {
+    console.error("Error updating profile:", err);
   }
 };
