@@ -1,8 +1,7 @@
-import { addDays, addHours, differenceInDays, format, isPast, isBefore } from 'date-fns';
+import { addDays, format, isPast, isBefore, isAfter, startOfDay, addHours, parse, setHours, setMinutes } from 'date-fns';
 
 /**
  * Parse frequency string to get times per day
- * Examples: "Once daily" -> 1, "Twice daily" -> 2, "Every 8 hours" -> 3
  */
 export const getFrequencyCount = (frequency) => {
   if (!frequency) return 1;
@@ -10,19 +9,19 @@ export const getFrequencyCount = (frequency) => {
   const freq = frequency.toLowerCase();
   if (freq.includes('once')) return 1;
   if (freq.includes('twice')) return 2;
-  if (freq.includes('thrice')) return 3;
+  if (freq.includes('thrice') || freq.includes('three times')) return 3;
+  if (freq.includes('four times') || freq.includes('4 times')) return 4;
   if (freq.includes('every 6')) return 4;
   if (freq.includes('every 8')) return 3;
   if (freq.includes('every 12')) return 2;
-  if (freq.includes('4 times')) return 4;
   
   // Extract number if present (e.g., "3 times daily")
-  const match = frequency.match(/(\d+)/);
+  const match = frequency.match(/(\d+)\s*times/i);
   return match ? parseInt(match[1]) : 1;
 };
 
 /**
- * Calculate time until a scheduled dose in human-readable format
+ * Calculate time until a scheduled dose
  */
 export const calculateTimeUntil = (scheduledTime) => {
   const now = new Date();
@@ -32,9 +31,22 @@ export const calculateTimeUntil = (scheduledTime) => {
   const diffDays = Math.floor(diffMs / 86400000);
 
   if (diffMins < 0) return 'Overdue';
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h ${diffMins % 60}m`;
-  return `${diffDays}d ${diffHours % 24}h`;
+  if (diffMins < 60) return `in ${diffMins} minutes`;
+  if (diffHours < 24) {
+    const mins = diffMins % 60;
+    return `in ${diffHours}h ${mins}m`;
+  }
+  const days = Math.floor(diffHours / 24);
+  return `in ${days} day${days !== 1 ? 's' : ''}`;
+};
+
+/**
+ * Parse time string (HH:MM) to hours and minutes
+ */
+const parseTimeString = (timeString) => {
+  if (!timeString) return null;
+  const [hours, minutes] = timeString.split(':').map(Number);
+  return { hours, minutes };
 };
 
 /**
@@ -44,55 +56,104 @@ export const generateUpcomingDoses = (prescriptions) => {
   const now = new Date();
   const upcomingDoses = [];
 
-  prescriptions.forEach((prescription) => {
-    const { id, name, medication, dosage, frequency, startDate, endDate } = prescription;
+  console.log('🔍 Generating doses for prescriptions:', prescriptions.length);
 
-    if (!startDate) return;
+  prescriptions.forEach((prescription) => {
+    const { id, name, medication, medicationName, dosage, frequency, startDate, endDate, time, dosesCompleted = [] } = prescription;
+
+    if (!startDate) {
+      console.log('⚠️ Skipping prescription (no startDate):', id);
+      return;
+    }
 
     const start = new Date(startDate);
-    const end = endDate ? new Date(endDate) : addDays(start, 7);
+    const end = endDate ? new Date(endDate) : addDays(now, 30);
 
-    // Only consider prescriptions that haven't ended yet
-    if (isPast(end)) return;
+    // Check if prescription is still active
+    if (isPast(end) && !isBefore(now, end)) {
+      console.log('⚠️ Prescription expired:', id);
+      return;
+    }
 
     const timesPerDay = getFrequencyCount(frequency);
+    const medName = medicationName || medication || name;
+    
+    console.log(`📋 Processing: ${medName} - ${timesPerDay} times/day, time: ${time || 'not set'}`);
+
+    // Parse the time field if it exists
+    const prescriptionTime = parseTimeString(time);
 
     // Generate doses for the next 7 days
-    for (let i = 0; i < 7; i++) {
-      const currentDay = addDays(now, i);
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const currentDay = addDays(startOfDay(now), dayOffset);
 
       // Check if current day is within prescription period
-      if (isBefore(currentDay, start) || isPast(end)) continue;
+      if (isBefore(currentDay, startOfDay(start))) continue;
+      if (isAfter(currentDay, end)) continue;
 
-      for (let j = 0; j < timesPerDay; j++) {
-        // Distribute times evenly throughout the day
-        const hour = Math.floor((j * 24) / timesPerDay);
-        const scheduledTime = new Date(currentDay);
-        scheduledTime.setHours(hour, 0, 0, 0);
+      for (let doseIndex = 0; doseIndex < timesPerDay; doseIndex++) {
+        let scheduledTime;
 
+        if (prescriptionTime && timesPerDay === 1) {
+          // Use the exact time from prescription for once-a-day medications
+          scheduledTime = setMinutes(
+            setHours(currentDay, prescriptionTime.hours),
+            prescriptionTime.minutes
+          );
+        } else if (prescriptionTime && timesPerDay > 1) {
+          // For multiple times per day, use prescription time as base and space out
+          const hourInterval = 24 / timesPerDay;
+          const offsetHours = doseIndex * hourInterval;
+          scheduledTime = addHours(
+            setMinutes(setHours(currentDay, prescriptionTime.hours), prescriptionTime.minutes),
+            offsetHours
+          );
+        } else {
+          // Fallback: Distribute times evenly throughout the day if no time set
+          const hour = Math.floor((doseIndex * 24) / timesPerDay);
+          scheduledTime = addHours(currentDay, hour);
+        }
+
+        // Skip past doses (more than 1 hour ago)
+        const diffMins = (scheduledTime.getTime() - now.getTime()) / 60000;
+        if (diffMins < -60) continue;
+
+        // Create unique dose key
+        const doseKey = format(scheduledTime, 'yyyy-MM-dd HH:mm');
+        
         // Determine status
         let status = 'upcoming';
-        if (isPast(scheduledTime) && !isBefore(scheduledTime, now)) {
-          status = 'overdue';
-        } else if (prescription.dosesCompleted && prescription.dosesCompleted.includes(format(scheduledTime, 'yyyy-MM-dd HH:00'))) {
+        if (dosesCompleted.includes(doseKey)) {
           status = 'taken';
+        } else if (isPast(scheduledTime)) {
+          status = 'overdue';
         }
 
         upcomingDoses.push({
-          id: `${id}-${i}-${j}`,
+          id: `${id}-${dayOffset}-${doseIndex}`,
           prescriptionId: id,
-          medication: medication || name,
+          medication: medName,
           dosage: dosage || '1 unit',
           frequency,
           scheduledTime,
-          scheduledTimeString: format(scheduledTime, 'MMM dd, yyyy HH:mm'),
+          scheduledTimeString: format(scheduledTime, 'MMM dd, yyyy h:mm a'),
           timeUntilDose: calculateTimeUntil(scheduledTime),
           status,
+          reminderTime: `${30} minutes before`,
         });
       }
     }
   });
 
-  // Sort by scheduled time
-  return upcomingDoses.sort((a, b) => a.scheduledTime.getTime() - b.scheduledTime.getTime());
+  // Sort by scheduled time (nearest first)
+  const sorted = upcomingDoses.sort((a, b) => a.scheduledTime.getTime() - b.scheduledTime.getTime());
+  
+  console.log('✅ Generated doses:', sorted.length);
+  console.log('🔍 Next 3 doses:', sorted.slice(0, 3).map(d => ({
+    med: d.medication,
+    time: format(d.scheduledTime, 'h:mm a'),
+    status: d.status
+  })));
+  
+  return sorted;
 };

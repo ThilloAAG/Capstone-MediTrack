@@ -8,6 +8,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  arrayUnion,
 } from "firebase/firestore";
 import { db, auth } from "../src/firebase";
 import * as Notifications from "expo-notifications";
@@ -150,4 +151,24 @@ export const subscribeToPrescriptions = (callback) => {
     }
   );
   return unsubscribe;
+};
+
+export const markDoseAsTaken = async (prescriptionId, doseKey) => {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No user logged in');
+
+    const prescriptionRef = doc(db, 'users', user.uid, 'prescriptions', prescriptionId);
+    
+    // Add the doseKey to dosesCompleted array
+    await updateDoc(prescriptionRef, {
+      dosesCompleted: arrayUnion(doseKey),
+      lastUpdated: new Date().toISOString(),
+    });
+
+    console.log(`Dose marked as taken: ${doseKey}`);
+  } catch (error) {
+    console.error('Error marking dose as taken:', error);
+    throw error;
+  }
 };

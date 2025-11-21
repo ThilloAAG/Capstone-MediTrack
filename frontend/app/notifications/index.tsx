@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,16 +15,13 @@ import { collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "../../src/firebase";
 
-
 export default function NotificationsScreen() {
   const [upcomingReminders, setUpcomingReminders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-
   useEffect(() => {
     initializeScreen();
   }, []);
-
 
   const initializeScreen = async () => {
     try {
@@ -67,7 +63,6 @@ export default function NotificationsScreen() {
       setLoading(false);
     }
   };
-
 
   const generateUpcomingReminders = (prefs, presc) => {
     const remindersArray = [];
@@ -150,7 +145,6 @@ export default function NotificationsScreen() {
     setUpcomingReminders(remindersArray);
   };
 
-
   const getStatusIcon = (status) => {
     switch (status) {
       case "now":
@@ -163,7 +157,6 @@ export default function NotificationsScreen() {
         return "time";
     }
   };
-
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -178,16 +171,9 @@ export default function NotificationsScreen() {
     }
   };
 
-
-  const handleMenuPress = () => {
-    console.log("Menu pressed");
-  };
-
-
   const handleOpenPreferences = () => {
     router.push("/notifications/preferences");
   };
-
 
   const handleNavigateToTab = (tab) => {
     switch (tab) {
@@ -210,18 +196,16 @@ export default function NotificationsScreen() {
     }
   };
 
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#0A84FF" />
+          <ActivityIndicator size="large" color="#13a4ec" />
           <Text style={styles.loadingText}>Loading reminders...</Text>
         </View>
       </SafeAreaView>
     );
   }
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -230,28 +214,26 @@ export default function NotificationsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.menuButton}
-            onPress={handleMenuPress}
+            style={styles.backButton}
+            onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Ionicons name="menu-outline" size={24} color="#111827" />
+            <Ionicons name="chevron-back" size={28} color="#13a4ec" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
           <TouchableOpacity
             onPress={handleOpenPreferences}
             style={styles.settingsButton}
           >
-            <Ionicons name="settings" size={20} color="#0A84FF" />
+            <Ionicons name="settings" size={20} color="#13a4ec" />
           </TouchableOpacity>
         </View>
-
 
         {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
           {/* Upcoming Reminders Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Reminders</Text>
-
 
             {upcomingReminders.length === 0 ? (
               <View style={styles.emptyState}>
@@ -285,7 +267,7 @@ export default function NotificationsScreen() {
                           {reminder.medicationName}
                         </Text>
                         <Text style={styles.reminderCount}>
-                          Reminder in {reminder.timeDisplay}
+                          Reminder {reminder.timeDisplay}
                         </Text>
                       </View>
                       <View
@@ -302,19 +284,17 @@ export default function NotificationsScreen() {
                       </View>
                     </View>
 
-
                     {/* Reminder Tags */}
                     <View style={styles.tagsContainer}>
                       <View style={styles.reminderTag}>
-                        <Ionicons name="time" size={12} color="#0A84FF" />
+                        <Ionicons name="time" size={12} color="#13a4ec" />
                         <Text style={styles.tagText}>{reminder.reminderLabel}</Text>
                       </View>
                       <View style={styles.reminderTag}>
-                        <Ionicons name="medical" size={12} color="#0A84FF" />
+                        <Ionicons name="medical" size={12} color="#13a4ec" />
                         <Text style={styles.tagText}>{reminder.dosage}</Text>
                       </View>
                     </View>
-
 
                     {/* Time Display */}
                     <View style={styles.timeRow}>
@@ -334,20 +314,18 @@ export default function NotificationsScreen() {
             )}
           </View>
 
-
           {/* Info Section */}
           {upcomingReminders.length > 0 && (
             <View style={styles.infoSection}>
               <View style={styles.infoBox}>
-                <Ionicons name="information-circle" size={20} color="#0A84FF" />
+                <Ionicons name="information-circle" size={20} color="#13a4ec" />
                 <Text style={styles.infoText}>
-                  {"Manage your preferences to customize reminder times"}
+                  Manage your preferences to customize reminder times
                 </Text>
               </View>
             </View>
           )}
         </ScrollView>
-
 
         {/* Bottom Navigation */}
         <View style={styles.bottomNavigation}>
@@ -383,7 +361,7 @@ export default function NotificationsScreen() {
             onPress={() => handleNavigateToTab("notifications")}
             activeOpacity={0.8}
           >
-            <Ionicons name="notifications" size={24} color="#0A84FF" />
+            <Ionicons name="notifications" size={24} color="#13a4ec" />
             <Text style={[styles.navText, styles.navTextActive]}>Notifications</Text>
           </TouchableOpacity>
 
@@ -400,7 +378,6 @@ export default function NotificationsScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -430,12 +407,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e5e7eb",
     justifyContent: "space-between",
   },
-  menuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+  backButton: {
+    padding: 8,
+    borderRadius: 50,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   headerTitle: {
     fontSize: 18,
@@ -483,7 +463,7 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     marginTop: 24,
-    backgroundColor: "#0A84FF",
+    backgroundColor: "#13a4ec",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -551,7 +531,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 11,
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "500",
   },
   timeRow: {
@@ -586,7 +566,7 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "500",
   },
   bottomNavigation: {
@@ -611,7 +591,7 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
   },
   navTextActive: {
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "700",
   },
 });
