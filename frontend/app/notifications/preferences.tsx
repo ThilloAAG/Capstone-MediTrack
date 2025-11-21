@@ -17,7 +17,6 @@ import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase
 import { getAuth } from "firebase/auth";
 import { db } from "../../src/firebase";
 
-
 export default function NotificationPreferencesScreen() {
   const [preferences, setPreferences] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
@@ -27,7 +26,6 @@ export default function NotificationPreferencesScreen() {
   const [selectedReminders, setSelectedReminders] = useState([]);
   const [showPrescriptionPicker, setShowPrescriptionPicker] = useState(false);
 
-
   const reminderOptions = [
     { id: "at-time", label: "At medication time", minutes: 0 },
     { id: "15-before", label: "15 minutes before", minutes: 15 },
@@ -36,11 +34,9 @@ export default function NotificationPreferencesScreen() {
     { id: "2h-before", label: "2 hours before", minutes: 120 },
   ];
 
-
   useEffect(() => {
     initializeScreen();
   }, []);
-
 
   const initializeScreen = async () => {
     try {
@@ -82,7 +78,6 @@ export default function NotificationPreferencesScreen() {
       setLoading(false);
     }
   };
-
 
   const handleAddPreference = async () => {
     if (!selectedPrescription) {
@@ -137,7 +132,6 @@ export default function NotificationPreferencesScreen() {
     }
   };
 
-
   const handleDeletePreference = (prefId) => {
     Alert.alert(
       "Delete Preference",
@@ -170,7 +164,6 @@ export default function NotificationPreferencesScreen() {
     );
   };
 
-
   const handleTogglePreference = async (prefId, currentValue) => {
     try {
       const auth = getAuth();
@@ -191,7 +184,6 @@ export default function NotificationPreferencesScreen() {
     }
   };
 
-
   const toggleReminder = (reminderId) => {
     if (selectedReminders.includes(reminderId)) {
       setSelectedReminders(selectedReminders.filter((id) => id !== reminderId));
@@ -200,18 +192,16 @@ export default function NotificationPreferencesScreen() {
     }
   };
 
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#0A84FF" />
+          <ActivityIndicator size="large" color="#13a4ec" />
           <Text style={styles.loadingText}>Loading preferences...</Text>
         </View>
       </SafeAreaView>
     );
   }
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -226,10 +216,9 @@ export default function NotificationPreferencesScreen() {
             onPress={() => setModalVisible(true)}
             style={styles.addButton}
           >
-            <Ionicons name="add" size={24} color="#0A84FF" />
+            <Ionicons name="add" size={24} color="#13a4ec" />
           </TouchableOpacity>
         </View>
-
 
         {/* PREFERENCES LIST */}
         <View style={styles.section}>
@@ -269,17 +258,15 @@ export default function NotificationPreferencesScreen() {
                   />
                 </View>
 
-
                 {/* Reminders Tags */}
                 <View style={styles.remindersList}>
                   {pref.reminderTimes?.map((reminder, idx) => (
                     <View key={idx} style={styles.reminderTag}>
-                      <Ionicons name="time" size={14} color="#0A84FF" />
+                      <Ionicons name="time" size={14} color="#13a4ec" />
                       <Text style={styles.reminderTagText}>{reminder}</Text>
                     </View>
                   ))}
                 </View>
-
 
                 {/* Actions */}
                 <View style={styles.prefActions}>
@@ -287,7 +274,7 @@ export default function NotificationPreferencesScreen() {
                     onPress={() => setModalVisible(true)}
                     style={styles.editButton}
                   >
-                    <Ionicons name="pencil" size={16} color="#0A84FF" />
+                    <Ionicons name="pencil" size={16} color="#13a4ec" />
                     <Text style={styles.editButtonText}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -303,10 +290,8 @@ export default function NotificationPreferencesScreen() {
           )}
         </View>
 
-
         <View style={{ height: 100 }} />
       </ScrollView>
-
 
       {/* ADD/EDIT MODAL */}
       <Modal
@@ -334,7 +319,6 @@ export default function NotificationPreferencesScreen() {
             <Text style={styles.modalTitle}>Add Notification</Text>
             <View style={{ width: 24 }} />
           </View>
-
 
           <ScrollView style={styles.modalContent}>
             {/* Select Prescription */}
@@ -371,7 +355,6 @@ export default function NotificationPreferencesScreen() {
                       color="#6B7280"
                     />
                   </TouchableOpacity>
-
 
                   {/* Prescription Picker Dropdown */}
                   {showPrescriptionPicker && (
@@ -411,7 +394,7 @@ export default function NotificationPreferencesScreen() {
                           </View>
                           {selectedPrescription?.id === pres.id && (
                             <View style={styles.checkmarkContainer}>
-                              <Ionicons name="checkmark" size={20} color="#0A84FF" />
+                              <Ionicons name="checkmark" size={20} color="#13a4ec" />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -421,7 +404,6 @@ export default function NotificationPreferencesScreen() {
                 </>
               )}
             </View>
-
 
             {/* Select Reminders */}
             {prescriptions.length > 0 && (
@@ -458,7 +440,6 @@ export default function NotificationPreferencesScreen() {
               </View>
             )}
 
-
             {/* Save Button */}
             {prescriptions.length > 0 && (
               <TouchableOpacity
@@ -474,7 +455,6 @@ export default function NotificationPreferencesScreen() {
               </TouchableOpacity>
             )}
 
-
             <View style={{ height: 50 }} />
           </ScrollView>
         </SafeAreaView>
@@ -482,7 +462,6 @@ export default function NotificationPreferencesScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -545,7 +524,7 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     marginTop: 24,
-    backgroundColor: "#0A84FF",
+    backgroundColor: "#13a4ec",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -598,7 +577,7 @@ const styles = StyleSheet.create({
   },
   reminderTagText: {
     fontSize: 12,
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "500",
   },
   prefActions: {
@@ -617,7 +596,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   editButtonText: {
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "600",
     fontSize: 14,
   },
@@ -734,7 +713,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   prescriptionOptionNameSelected: {
-    color: "#0A84FF",
+    color: "#13a4ec",
     fontWeight: "600",
   },
   prescriptionOptionDosage: {
@@ -743,7 +722,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   prescriptionOptionDosageSelected: {
-    color: "#0A84FF",
+    color: "#13a4ec",
   },
   checkmarkContainer: {
     marginLeft: 12,
@@ -764,7 +743,7 @@ const styles = StyleSheet.create({
   },
   reminderOptionSelected: {
     backgroundColor: "#E0F7FF",
-    borderColor: "#0A84FF",
+    borderColor: "#13a4ec",
   },
   reminderCheckbox: {
     width: 20,
@@ -775,7 +754,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   reminderCheckboxSelected: {
-    backgroundColor: "#0A84FF",
+    backgroundColor: "#13a4ec",
   },
   reminderOptionText: {
     fontSize: 15,
@@ -783,7 +762,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   saveButton: {
-    backgroundColor: "#0A84FF",
+    backgroundColor: "#13a4ec",
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",

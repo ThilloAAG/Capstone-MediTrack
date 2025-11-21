@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToPrescriptions } from '../../services/prescriptionsService';
+import { db, auth } from '../../src/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { generateUpcomingDoses } from '../../services/upcomingDosesService';
-import { differenceInHours, differenceInMinutes, isToday } from 'date-fns';
+import { format, differenceInMinutes, addHours, isAfter, isBefore } from 'date-fns';
 
 interface Prescription {
   id: string;
-  name: string;
-  medication: string;
-  dosage: string;
-  frequency: string;
-  startDate: string;
+  medicationName?: string;
+  dosage?: string;
+  frequency?: string;
+  startDate?: string;
   endDate?: string;
-  taken?: boolean;
+  notes?: string;
+  createdAt?: any;
 }
 
 interface UpcomingDose {
@@ -29,25 +30,24 @@ interface UpcomingDose {
   scheduledTimeString: string;
   timeUntilDose: string;
   status: 'upcoming' | 'overdue' | 'taken';
+  reminderTime?: string;
 }
 
 export default function DashboardScreen() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [upcomingDoses, setUpcomingDoses] = useState<UpcomingDose[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [adherenceStats, setAdherenceStats] = useState<{ taken: number; total: number }>({ taken: 0, total: 0 });
 
-  // ✅ All handlers first
   const handleSettings = (): void => {
     router.push('/profile');
   };
 
   const handleDispenseNow = (): void => {
-    console.log('Dispense now pressed');
+    Alert.alert('Dispense Now', 'Dispensing medication...');
   };
 
   const handleEmergency = (): void => {
-    console.log('Emergency pressed');
+    Alert.alert('Emergency', 'Calling emergency contact...');
   };
 
   const handleNavigateToTab = (tab: string): void => {
@@ -64,93 +64,41 @@ export default function DashboardScreen() {
       case 'profile':
         router.push('/profile');
         break;
-      default:
-        break;
     }
   };
 
-  // 📊 Calculate today's adherence
-  const calculateAdherence = (presc: Prescription[]): void => {
-    let taken = 0;
-    let total = 0;
-    
-    presc.forEach((p) => {
-      if (p.startDate && isToday(new Date(p.startDate))) {
-        total++;
-        if (p.taken) taken++;
-      }
-    });
-    
-    setAdherenceStats({ taken, total });
-  };
-
-  // 🔍 Get next upcoming dose
-  const getNextDose = (): UpcomingDose | null => {
-    return upcomingDoses.length > 0 ? upcomingDoses[0] : null;
-  };
-
-  // ⏰ Format time until next dose
-  const getTimeUntilDose = (dateObj: Date): string => {
-    const target = dateObj;
-    const now = new Date();
-    const hours: number = differenceInHours(target, now);
-    const minutes: number = differenceInMinutes(target, now) % 60;
-
-    if (hours > 24) {
-      const days = Math.floor(hours / 24);
-      return `In ${days} day${days !== 1 ? 's' : ''}`;
-    }
-    if (hours > 0) return `In ${hours}h ${minutes}m`;
-    if (minutes > 0) return `In ${minutes} minutes`;
-    return 'Now';
-  };
-
-  // 🔄 Load real prescriptions and generate doses
+  // Load prescriptions from Firebase
   useEffect(() => {
-    const unsubscribe = subscribeToPrescriptions((data: Prescription[]) => {
-      setPrescriptions(data);
-      calculateAdherence(data);
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'prescriptions', user.uid, 'userPrescriptions'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data: Prescription[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Prescription[];
       
-      // Generate upcoming doses from prescriptions
+      console.log('📊 Loaded prescriptions:', data.length);
+      setPrescriptions(data);
+      
+      // Generate upcoming doses
       const doses = generateUpcomingDoses(data);
+      console.log('💊 Generated doses:', doses.length);
       setUpcomingDoses(doses);
       
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    return unsubscribe;
   }, []);
-
-  // ✅ Get next dose (after state is available)
-  const nextDose = getNextDose();
-
-  // Render upcoming dose item
-  const renderDoseItem = ({ item }: { item: UpcomingDose }) => (
-    <View style={styles.doseListItem}>
-      <View style={styles.doseTimeIndicator}>
-        <View style={[
-          styles.statusDot,
-          item.status === 'taken' && styles.statusDotTaken,
-          item.status === 'overdue' && styles.statusDotOverdue,
-        ]} />
-      </View>
-      
-      <View style={styles.doseContent}>
-        <Text style={styles.doseMedication}>{item.medication}</Text>
-        <Text style={styles.doseDosage}>{item.dosage}</Text>
-        <Text style={styles.doseFrequency}>{item.frequency}</Text>
-      </View>
-
-      <View style={styles.doseTimeRight}>
-        <Text style={[
-          styles.doseTimeText,
-          item.status === 'overdue' && styles.doseTimeOverdue,
-        ]}>
-          {item.timeUntilDose}
-        </Text>
-        <Text style={styles.doseScheduledTime}>{item.scheduledTimeString}</Text>
-      </View>
-    </View>
-  );
 
   if (loading) {
     return (
@@ -159,6 +107,33 @@ export default function DashboardScreen() {
       </SafeAreaView>
     );
   }
+
+  // Format time until dose
+  const formatTimeUntil = (scheduledTime: Date): string => {
+    const now = new Date();
+    const mins = differenceInMinutes(scheduledTime, now);
+    if (mins < 60) return `in ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return `in ${hours}h ${remainingMins}m`;
+  };
+
+  // Filter doses for next 2 hours (FIXED VERSION)
+  const now = new Date();
+  const twoHoursLater = addHours(now, 2);
+  const nextTwoHoursDoses = upcomingDoses.filter(dose => 
+    dose.status === 'upcoming' && 
+    isAfter(dose.scheduledTime, now) && 
+    isBefore(dose.scheduledTime, twoHoursLater)
+  ).slice(0, 10);
+
+  // Count all upcoming doses
+  const oneDayLater = addHours(now, 24);
+  const totalUpcomingDoses = upcomingDoses.filter(d => 
+     d.status === 'upcoming' && 
+     isAfter(d.scheduledTime, now) && 
+     isBefore(d.scheduledTime, oneDayLater)
+  ).length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -180,53 +155,43 @@ export default function DashboardScreen() {
 
         {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* 📊 Adherence Card */}
-          <View style={styles.adherenceCard}>
-            <View style={styles.adherenceHeader}>
-              <Ionicons name="checkmark-circle" size={24} color="#4ade80" />
-              <Text style={styles.adherenceTitle}>Today&apos;s Adherence</Text>
+          
+          {/* 💊 Upcoming Doses (Next 2 Hours) */}
+          <View style={styles.upcomingDosesContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Upcoming Doses</Text>
+              <Text style={styles.timeframeText}>Next 2 hours</Text>
             </View>
-            <View style={styles.adherenceStats}>
-              <Text style={styles.adherenceNumber}>
-                {adherenceStats.taken}/{adherenceStats.total}
-              </Text>
-              <Text style={styles.adherenceLabel}>Doses Taken</Text>
-            </View>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${adherenceStats.total > 0 ? (adherenceStats.taken / adherenceStats.total) * 100 : 0}%` }
-                ]} 
-              />
-            </View>
-          </View>
-
-          {/* 💊 Next Dose Card */}
-          {nextDose ? (
-            <View style={styles.nextDoseCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.medicationImageContainer}>
-                  <Image
-                    source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCWS6ygCc6px20INOg_CCFWfJ1wP7pjwuVKaW7qS9EMYnIQINBtuWO18lKBIyhusx0mmuwZuHggEUAOZNFyNEG0PqUeWQ4v6262Wp1BzGNolViY501vaGS9r-6XwvfQEHtIRv7cgkPOs_OWZpmOlH555CN_XCalVyxAejbfoHplAh_XyfcwmSBX1mXvZi-8SfMO5KW2uS2zuPTt_BWyH1kGn1I0b8ZI9f4aFwhBncFObp0A5du0bxyi84MLsSEaZwkjVkY6b_CIOUk" }}
-                    style={styles.medicationImage}
-                    resizeMode="cover"
-                  />
-                </View>
-                <View style={styles.medicationInfo}>
-                  <Text style={styles.nextDoseLabel}>Next Dose</Text>
-                  <Text style={styles.medicationName}>{nextDose.medication}</Text>
-                  <Text style={styles.medicationDosage}>{nextDose.dosage}</Text>
-                  <Text style={styles.medicationTime}>{getTimeUntilDose(nextDose.scheduledTime)}</Text>
-                </View>
+            
+            {nextTwoHoursDoses.length > 0 ? (
+              <ScrollView 
+                style={styles.dosesScrollView}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {nextTwoHoursDoses.map((dose) => (
+                  <View key={dose.id} style={styles.doseCard}>
+                    <View style={styles.doseIconContainer}>
+                      <Ionicons name="medical" size={20} color="#13a4ec" />
+                    </View>
+                    <View style={styles.doseDetails}>
+                      <Text style={styles.doseMedication}>{dose.medication}</Text>
+                      <Text style={styles.doseDosage}>{dose.dosage}</Text>
+                    </View>
+                    <View style={styles.doseTimeContainer}>
+                      <Text style={styles.doseTime}>{format(dose.scheduledTime, 'h:mm a')}</Text>
+                      <Text style={styles.doseCountdown}>{formatTimeUntil(dose.scheduledTime)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyDoses}>
+                <Ionicons name="checkmark-circle-outline" size={40} color="#4ade80" />
+                <Text style={styles.emptyText}>No doses in the next 2 hours</Text>
               </View>
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="calendar-outline" size={48} color="#b0b8c1" />
-              <Text style={styles.emptyText}>No upcoming doses</Text>
-            </View>
-          )}
+            )}
+          </View>
 
           {/* 📈 Health Insights */}
           <View style={styles.healthInsightsContainer}>
@@ -239,47 +204,18 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.insightCard}>
                 <Ionicons name="checkmark-done" size={20} color="#4ade80" />
-                <Text style={styles.insightValue}>
-                  {adherenceStats.total > 0 ? Math.round((adherenceStats.taken / adherenceStats.total) * 100) : 0}%
-                </Text>
+                <Text style={styles.insightValue}>0%</Text>
                 <Text style={styles.insightLabel}>Compliance</Text>
               </View>
               <View style={styles.insightCard}>
                 <Ionicons name="time" size={20} color="#f59e0b" />
-                <Text style={styles.insightValue}>{upcomingDoses.length}</Text>
+                <Text style={styles.insightValue}>{totalUpcomingDoses}</Text>
                 <Text style={styles.insightLabel}>Upcoming</Text>
               </View>
             </View>
           </View>
 
-          {/* 📋 Upcoming Doses List */}
-          <View style={styles.upcomingDosesContainer}>
-            <View style={styles.upcomingHeader}>
-              <Text style={styles.sectionTitle}>Next 7 Days</Text>
-              <Text style={styles.doseCount}>{upcomingDoses.length} doses</Text>
-            </View>
-            
-            {upcomingDoses.length > 0 ? (
-              <FlatList
-                data={upcomingDoses.slice(0, 5)}
-                renderItem={renderDoseItem}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                style={styles.dosesList}
-              />
-            ) : (
-              <Text style={styles.emptyDosesList}>No upcoming doses scheduled</Text>
-            )}
-
-            {upcomingDoses.length > 5 && (
-              <TouchableOpacity style={styles.viewAllButton}>
-                <Text style={styles.viewAllText}>View All ({upcomingDoses.length})</Text>
-                <Ionicons name="arrow-forward" size={16} color="#13a4ec" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Quick Actions */}
+          {/* ⚡ Quick Actions */}
           <View style={styles.quickActionsContainer}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
@@ -304,11 +240,7 @@ export default function DashboardScreen() {
 
         {/* Bottom Navigation */}
         <View style={styles.bottomNavigation}>
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => {}}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} activeOpacity={0.8}>
             <Ionicons name="home" size={24} color="#13a4ec" />
             <Text style={[styles.navText, styles.navTextActive]}>Dashboard</Text>
           </TouchableOpacity>
@@ -391,120 +323,90 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
-  // 📊 Adherence Card Styles
-  adherenceCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
+  // Upcoming Doses Section
+  upcomingDosesContainer: {
     marginTop: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: 24,
   },
-  adherenceHeader: {
+  sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  adherenceTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111618',
-  },
-  adherenceStats: {
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-  },
-  adherenceNumber: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#13a4ec',
-  },
-  adherenceLabel: {
-    fontSize: 14,
-    color: '#617c89',
-    marginTop: 4,
-  },
-  progressBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#f0f3f4',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#4ade80',
-    borderRadius: 4,
-  },
-  // 💊 Next Dose Card
-  nextDoseCard: {
-    backgroundColor: '#13a4ec20',
-    borderRadius: 24,
-    padding: 16,
-    marginVertical: 12,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  medicationImageContainer: {
-    width: 120,
-    height: 160,
-  },
-  medicationImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 16,
-  },
-  medicationInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  nextDoseLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111618',
-  },
-  medicationName: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#13a4ec',
-    marginTop: 8,
-  },
-  medicationDosage: {
-    fontSize: 16,
-    color: '#617c89',
-  },
-  medicationTime: {
-    fontSize: 16,
-    color: '#617c89',
-  },
-  emptyCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#b0b8c1',
-    marginTop: 12,
-  },
-  // 📈 Health Insights
-  healthInsightsContainer: {
-    marginVertical: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#111618',
-    marginBottom: 12,
+  },
+  timeframeText: {
+    fontSize: 12,
+    color: '#617c89',
+    fontWeight: '500',
+  },
+  dosesScrollView: {
+    maxHeight: 240,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 12,
+  },
+  doseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f3f4',
+  },
+  doseIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e3f5ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  doseDetails: {
+    flex: 1,
+  },
+  doseMedication: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111618',
+    marginBottom: 2,
+  },
+  doseDosage: {
+    fontSize: 12,
+    color: '#617c89',
+  },
+  doseTimeContainer: {
+    alignItems: 'flex-end',
+  },
+  doseTime: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f59e0b',
+    marginBottom: 2,
+  },
+  doseCountdown: {
+    fontSize: 11,
+    color: '#617c89',
+  },
+  emptyDoses: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#617c89',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Health Insights
+  healthInsightsContainer: {
+    marginBottom: 24,
   },
   insightsGrid: {
     flexDirection: 'row',
@@ -534,115 +436,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-  // 📋 Upcoming Doses Styles
-  upcomingDosesContainer: {
-    marginVertical: 16,
-    marginBottom: 24,
-  },
-  upcomingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  doseCount: {
-    fontSize: 12,
-    color: '#13a4ec',
-    fontWeight: '600',
-    backgroundColor: '#13a4ec20',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  dosesList: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  doseListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f3f4',
-  },
-  doseTimeIndicator: {
-    marginRight: 12,
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#13a4ec',
-  },
-  statusDotTaken: {
-    backgroundColor: '#4ade80',
-  },
-  statusDotOverdue: {
-    backgroundColor: '#ef4444',
-  },
-  doseContent: {
-    flex: 1,
-    gap: 2,
-  },
-  doseMedication: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111618',
-  },
-  doseDosage: {
-    fontSize: 12,
-    color: '#617c89',
-  },
-  doseFrequency: {
-    fontSize: 11,
-    color: '#b0b8c1',
-  },
-  doseTimeRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  doseTimeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#13a4ec',
-  },
-  doseTimeOverdue: {
-    color: '#ef4444',
-  },
-  doseScheduledTime: {
-    fontSize: 10,
-    color: '#b0b8c1',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f3f4',
-    backgroundColor: '#ffffff',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    gap: 8,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#13a4ec',
-  },
-  emptyDosesList: {
-    textAlign: 'center',
-    paddingVertical: 24,
-    color: '#b0b8c1',
-    fontSize: 14,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-  },
   // Quick Actions
   quickActionsContainer: {
-    marginVertical: 12,
     marginBottom: 24,
   },
   quickActionsGrid: {
