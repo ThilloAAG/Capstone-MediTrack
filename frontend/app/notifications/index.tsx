@@ -15,13 +15,16 @@ import { collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "../../src/firebase";
 
+
 export default function NotificationsScreen() {
   const [upcomingReminders, setUpcomingReminders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
     initializeScreen();
   }, []);
+
 
   const initializeScreen = async () => {
     try {
@@ -29,11 +32,13 @@ export default function NotificationsScreen() {
       const auth = getAuth();
       const user = auth.currentUser;
 
+
       if (!user) {
         console.error("❌ User not authenticated");
         setLoading(false);
         return;
       }
+
 
       // Load prescriptions
       const prescriptionsSnapshot = await getDocs(
@@ -45,6 +50,7 @@ export default function NotificationsScreen() {
       }));
       console.log("✅ Prescriptions loaded:", prescriptions.length);
 
+
       // Load preferences
       const preferencesSnapshot = await getDocs(
         collection(db, `notificationPreferences/${user.uid}/preferences`)
@@ -55,6 +61,7 @@ export default function NotificationsScreen() {
       }));
       console.log("✅ Preferences loaded:", preferences.length);
 
+
       // Generate upcoming reminders from preferences
       generateUpcomingReminders(preferences, prescriptions);
       setLoading(false);
@@ -64,12 +71,15 @@ export default function NotificationsScreen() {
     }
   };
 
+
   const generateUpcomingReminders = (prefs, presc) => {
     const remindersArray = [];
+
 
     prefs.forEach((pref) => {
       // Skip inactive preferences
       if (!pref.isActive) return;
+
 
       // Find the matching prescription
       const prescription = presc.find((p) => p.id === pref.prescriptionId);
@@ -78,31 +88,38 @@ export default function NotificationsScreen() {
         return;
       }
 
+
       // Get medication time from prescription
       const medTime = prescription.time || "09:00";
+
 
       // Parse time (HH:MM format)
       const [hours, minutes] = medTime.split(":").map(Number);
       const medicationTime = new Date();
       medicationTime.setHours(hours, minutes, 0);
 
+
       // Get reminder minutes from preferences
       const reminderMinutes = pref.reminderMinutes || [0];
+
 
       // Create a reminder for each reminder time
       reminderMinutes.forEach((mins, idx) => {
         const reminderTime = new Date(medicationTime);
         reminderTime.setMinutes(reminderTime.getMinutes() - mins);
 
+
         // Calculate time until reminder
         const now = new Date();
         const diffMs = reminderTime.getTime() - now.getTime();
         const diffMins = Math.round(diffMs / 60000);
 
+
         // Only include upcoming reminders (next 24 hours)
         if (diffMins > -60) {
           let status = "future";
           let timeDisplay = "";
+
 
           if (diffMins < 0) {
             status = "overdue";
@@ -119,6 +136,7 @@ export default function NotificationsScreen() {
             timeDisplay = `in ${hoursUntil}h ${minsRemaining}m`;
             status = "upcoming";
           }
+
 
           remindersArray.push({
             id: `${pref.id}-${idx}`,
@@ -140,10 +158,12 @@ export default function NotificationsScreen() {
       });
     });
 
+
     // Sort by time (nearest first)
     remindersArray.sort((a, b) => a.diffMins - b.diffMins);
     setUpcomingReminders(remindersArray);
   };
+
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -158,6 +178,7 @@ export default function NotificationsScreen() {
     }
   };
 
+
   const getStatusColor = (status) => {
     switch (status) {
       case "now":
@@ -171,9 +192,11 @@ export default function NotificationsScreen() {
     }
   };
 
+
   const handleOpenPreferences = () => {
     router.push("/notifications/preferences");
   };
+
 
   const handleNavigateToTab = (tab) => {
     switch (tab) {
@@ -196,6 +219,7 @@ export default function NotificationsScreen() {
     }
   };
 
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -206,6 +230,7 @@ export default function NotificationsScreen() {
       </SafeAreaView>
     );
   }
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -218,22 +243,25 @@ export default function NotificationsScreen() {
             onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Ionicons name="chevron-back" size={28} color="#13a4ec" />
+            <Ionicons name="arrow-back" size={24} color="#111618" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>
           <TouchableOpacity
             onPress={handleOpenPreferences}
             style={styles.settingsButton}
+            activeOpacity={0.8}
           >
-            <Ionicons name="settings" size={20} color="#13a4ec" />
+            <Ionicons name="settings-outline" size={24} color="#111618" />
           </TouchableOpacity>
         </View>
+
 
         {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
           {/* Upcoming Reminders Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Reminders</Text>
+
 
             {upcomingReminders.length === 0 ? (
               <View style={styles.emptyState}>
@@ -284,6 +312,7 @@ export default function NotificationsScreen() {
                       </View>
                     </View>
 
+
                     {/* Reminder Tags */}
                     <View style={styles.tagsContainer}>
                       <View style={styles.reminderTag}>
@@ -295,6 +324,7 @@ export default function NotificationsScreen() {
                         <Text style={styles.tagText}>{reminder.dosage}</Text>
                       </View>
                     </View>
+
 
                     {/* Time Display */}
                     <View style={styles.timeRow}>
@@ -314,6 +344,7 @@ export default function NotificationsScreen() {
             )}
           </View>
 
+
           {/* Info Section */}
           {upcomingReminders.length > 0 && (
             <View style={styles.infoSection}>
@@ -327,6 +358,7 @@ export default function NotificationsScreen() {
           )}
         </ScrollView>
 
+
         {/* Bottom Navigation */}
         <View style={styles.bottomNavigation}>
           <TouchableOpacity
@@ -338,6 +370,7 @@ export default function NotificationsScreen() {
             <Text style={styles.navText}>Dashboard</Text>
           </TouchableOpacity>
 
+
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => handleNavigateToTab("prescriptions")}
@@ -346,6 +379,7 @@ export default function NotificationsScreen() {
             <Ionicons name="medical-outline" size={24} color="#9ca3af" />
             <Text style={styles.navText}>Prescriptions</Text>
           </TouchableOpacity>
+
 
           <TouchableOpacity
             style={styles.navItem}
@@ -356,6 +390,7 @@ export default function NotificationsScreen() {
             <Text style={styles.navText}>Machines</Text>
           </TouchableOpacity>
 
+
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => handleNavigateToTab("notifications")}
@@ -364,6 +399,7 @@ export default function NotificationsScreen() {
             <Ionicons name="notifications" size={24} color="#13a4ec" />
             <Text style={[styles.navText, styles.navTextActive]}>Notifications</Text>
           </TouchableOpacity>
+
 
           <TouchableOpacity
             style={styles.navItem}
@@ -378,6 +414,7 @@ export default function NotificationsScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -404,25 +441,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: "#f6f7f8cc",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#f0f3f4",
     justifyContent: "space-between",
   },
   backButton: {
-    padding: 8,
-    borderRadius: 50,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    padding: 4,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111618",
     flex: 1,
     textAlign: "center",
+    paddingRight: 32,
   },
   settingsButton: {
     width: 40,
