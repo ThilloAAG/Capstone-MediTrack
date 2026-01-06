@@ -1,134 +1,118 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  TextInput, 
-  KeyboardAvoidingView, 
-  Platform, 
-  Alert, 
-  ActivityIndicator 
-} from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { registerUser, loginUser } from '../../src/services/auth';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../../src/firebase";
+import { useRouter } from "expo-router";
+
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{email?: string; password?: string; form?: string}>({});
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-
-  const validate = () => {
-    const e: any = {};
-  
-    if (!email.trim()) {
-      e.email = "Email is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      e.email = "Invalid email address.";
-    }
-  
-    if (!password.trim()) {
-      e.password = "Password is required.";
-    }
-  
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
   const handleLogin = async () => {
-    if (!validate()) return;
-    setLoading(true);
-
     try {
-      const cred = await loginUser(email, password);
-      console.log("Logged in:", cred.user.uid);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
 
-      setTimeout(() => {
-        router.replace('/dashboard');
-      }, 500);
+      const uid = userCredential.user.uid;
 
-    } catch (err: any) {
-      console.error("Login error:", err);
-      setErrors((prev) => ({ ...prev, form: err?.message ?? "Login error." }));
-      Alert.alert('Login', err?.message ?? 'Login error');
-      setEmail('');
-      setPassword('');
-    } finally {
-      setLoading(false);
+      // 1️⃣ Check DOCTOR
+      const doctorRef = doc(db, "doctors", uid);
+      const doctorSnap = await getDoc(doctorRef);
+
+      if (doctorSnap.exists()) {
+        router.replace("/doctor/dashboardDoctor");
+        return;
+      }
+
+      // 2️⃣ Check PATIENT
+      const userRef = doc(db, "users", uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      alert("Rôle utilisateur introuvable");
+
+    } catch (error: any) {
+      alert(error.message);
     }
   };
 
-  const handleGoogleSignIn = () => {
-    Alert.alert('Coming soon', "Google Sign-In will be added later 😉");
-  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.main}>
           <View style={styles.content}>
-            <View style={styles.titleContainer}>
-              <Text style={styles.title}>Welcome Back</Text>
-            </View>
+            <Text style={styles.title}>Welcome Back</Text>
 
             <View style={styles.formContainer}>
-              <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#64748B"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <View style={styles.passwordWrapper}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Email"
+                  placeholder="Password"
                   placeholderTextColor="#64748B"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
                   autoCapitalize="none"
-                  autoCorrect={false}
                 />
+
+                <TouchableOpacity
+                  style={styles.eyeIcon}
+                  onPress={() => setPasswordVisible(!passwordVisible)}
+                >
+                  <Ionicons
+                    name={passwordVisible ? "eye-off" : "eye"}
+                    size={22}
+                    color="#64748B"
+                  />
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-  <View style={styles.passwordWrapper}>
-    <TextInput
-      style={styles.input}
-      placeholder="Password"
-      placeholderTextColor="#64748B"
-      value={password}
-      onChangeText={setPassword}
-      secureTextEntry={!passwordVisible}
-      autoCapitalize="none"
-      autoCorrect={false}
-    />
-
-    <TouchableOpacity 
-      style={styles.eyeIcon}
-      onPress={() => setPasswordVisible(!passwordVisible)}
-    >
-      <Ionicons 
-        name={passwordVisible ? "eye-off" : "eye"} 
-        size={22} 
-        color="#64748B" 
-      />
-    </TouchableOpacity>
-  </View>
-</View>
-
-
-              {/* Login Button with loader */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.loginButton, loading && { opacity: 0.6 }]}
                 onPress={handleLogin}
                 disabled={loading}
-                activeOpacity={0.8}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -136,38 +120,18 @@ export default function LoginScreen() {
                   <Text style={styles.loginButtonText}>Log In</Text>
                 )}
               </TouchableOpacity>
-
-              {/* Divider */}
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Google Sign In */}
-              <TouchableOpacity 
-                style={styles.googleButton}
-                onPress={handleGoogleSignIn}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-google" size={24} color="#0F172A" />
-                <Text style={styles.googleButtonText}>Sign in with Google</Text>
-              </TouchableOpacity>
             </View>
-          </View>
-        </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            onPress={() => router.push('/auth/signupscreenUpdated')} 
-            activeOpacity={0.8}
-          >
-            <Text style={styles.footerText}>
-              Don't have an account?{' '}
-              <Text style={styles.createAccountText}>Create Account</Text>
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.footer}
+              onPress={() => router.push("/auth/signupscreenUpdated")}
+            >
+              <Text style={styles.footerText}>
+                Don't have an account?{" "}
+                <Text style={styles.createAccountText}>Create Account</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -175,124 +139,46 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f6f7f8',
-  },
-  keyboardContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  main: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  content: {
-    alignItems: 'center',
-  },
-  titleContainer: {
-    paddingVertical: 32,
-  },
+  container: { flex: 1, backgroundColor: "#f6f7f8" },
+  keyboardContainer: { flex: 1, paddingHorizontal: 24 },
+  main: { flex: 1, justifyContent: "center" },
+  content: { alignItems: "center" },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 32,
   },
   formContainer: {
-    width: '100%',
+    width: "100%",
     maxWidth: 320,
     gap: 16,
   },
-  inputContainer: {
-    width: '100%',
-  },
   input: {
-    width: '100%',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    color: '#0F172A',
+    backgroundColor: "#F1F5F9",
     fontSize: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  },
+  passwordWrapper: { position: "relative" },
+  eyeIcon: {
+    position: "absolute",
+    right: 16,
+    top: 12,
   },
   loginButton: {
-    backgroundColor: '#13a4ec',
+    backgroundColor: "#13a4ec",
     paddingVertical: 12,
-    paddingHorizontal: 16,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: '#13a4ec',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    alignItems: "center",
   },
   loginButtonText: {
-    color: '#ffffff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#64748B30',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    textTransform: 'uppercase',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-  },
-  googleButtonText: {
-    color: '#0F172A',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  footer: {
-    alignItems: 'center',
-    paddingBottom: 16,
-    paddingTop: 16,
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  createAccountText: {
-    fontWeight: '700',
-    color: '#13a4ec',
-  },
-  passwordWrapper: {
-  width: "100%",
-  position: "relative",
-  justifyContent: "center",
-},
-
-eyeIcon: {
-  position: "absolute",
-  right: 16,
-  height: "100%",
-  justifyContent: "center",
-},
-
+  footer: { marginTop: 24 },
+  footerText: { color: "#64748B" },
+  createAccountText: { color: "#13a4ec", fontWeight: "700" },
 });
