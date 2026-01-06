@@ -37,7 +37,6 @@ export default function LoginScreen() {
 
       const uid = userCredential.user.uid;
 
-      // 1️⃣ Check DOCTOR
       const doctorRef = doc(db, "doctors", uid);
       const doctorSnap = await getDoc(doctorRef);
 
@@ -46,7 +45,6 @@ export default function LoginScreen() {
         return;
       }
 
-      // 2️⃣ Check PATIENT
       const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
 
@@ -55,13 +53,12 @@ export default function LoginScreen() {
         return;
       }
 
-      alert("Rôle utilisateur introuvable");
+      Alert.alert("Erreur", "Rôle utilisateur introuvable");
 
     } catch (error: any) {
-      alert(error.message);
+      Alert.alert("Login error", error.message);
     }
   };
-
 
   return (
     <SafeAreaView style={styles.container}>

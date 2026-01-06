@@ -43,7 +43,7 @@ const settingsSections: SettingSection[] = [
         title: "Personal Info",
         subtitle: "Manage your personal information",
         icon: "person-outline",
-        action: () => router.push("/profile/personal-info"),
+        action: () => router.push("/patient/profile/personal-info"),
       },
       {
         id: "logout",
@@ -67,7 +67,7 @@ const settingsSections: SettingSection[] = [
         id: "notifications-settings",
         title: "Notifications",
         icon: "notifications-outline",
-        action: () => router.push("/notifications"),
+        action: () => router.push("/patient/notifications"),
       },
     ],
   },
@@ -101,16 +101,16 @@ export default function ProfileScreen() {
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case "dashboard":
-        router.push("/dashboard");
+        router.push("/patient/dashboard");
         break;
       case "prescriptions":
-        router.push("/prescriptions");
+        router.push("/patient/prescriptions");
         break;
       case "machines":
-        router.push("/machines");
+        router.push("/patient/machines");
         break;
       case "notifications":
-        router.push("/notifications");
+        router.push("/patient/notifications");
         break;
       case "admin":
         router.push("/admin");

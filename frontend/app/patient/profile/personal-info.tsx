@@ -18,10 +18,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { getUserProfile, updateUserProfile } from "../../services/profileService";
-import { auth } from "../../src/firebase";
-import avatarPlaceholder from "../../assets/images/avatar-placeholder.png"; 
-
+import { getUserProfile, updateUserProfile } from "../../../services/profileService";
+import { auth } from "../../../src/firebase";
+import avatarPlaceholder from "../../../assets/images/avatar-placeholder.png";
 
 /** Types */
 type UserProfile = {

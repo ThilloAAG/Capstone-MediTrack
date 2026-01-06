@@ -4,9 +4,9 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { db, auth } from '../../src/firebase';
+import { db, auth } from '../../../src/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { generateUpcomingDoses } from '../../services/upcomingDosesService';
+import { generateUpcomingDoses } from '../../../services/upcomingDosesService';
 import { format, differenceInMinutes, addHours, isAfter, isBefore } from 'date-fns';
 
 interface Prescription {

@@ -13,7 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "../../src/firebase";
+import { db } from "../../../src/firebase";
 
 
 export default function NotificationsScreen() {
