@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "../../src/firebase";
+import { db } from "../../../src/firebase";
 
 export default function NotificationPreferencesScreen() {
   const [preferences, setPreferences] = useState([]);

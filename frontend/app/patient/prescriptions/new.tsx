@@ -8,7 +8,7 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { db, auth } from "../../src/firebase";
+import { db, auth } from "../../../src/firebase";
 import { addDoc, collection } from "firebase/firestore";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -68,7 +68,7 @@ export default function NewPrescriptionScreen() {
       });
 
       Alert.alert("Success", "Prescription added!");
-      router.push("/prescriptions");
+      router.push("/patient/prescriptions");
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Unable to save the prescription.");

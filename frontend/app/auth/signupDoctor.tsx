@@ -59,7 +59,7 @@ export default function SignupDoctor() {
       });
 
       // 3. Redirect to doctor dashboard
-      router.replace("/doctor/dashboardDoctor");
+      router.replace("/doctor/dashboard");
 
     } catch (error: any) {
       Alert.alert("Erreur", error.message);

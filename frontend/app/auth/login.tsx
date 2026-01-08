@@ -29,6 +29,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
+      if (!email || !password) {
+        Alert.alert("Erreur", "Veuillez entrer email et mot de passe");
+        return;
+      }
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email.trim(),
@@ -36,29 +41,43 @@ export default function LoginScreen() {
       );
 
       const uid = userCredential.user.uid;
+      console.log("Logged in UID:", uid);
 
+      // Vérifie si l'utilisateur est un docteur
       const doctorRef = doc(db, "doctors", uid);
       const doctorSnap = await getDoc(doctorRef);
+      console.log("doctorSnap.exists():", doctorSnap.exists());
 
       if (doctorSnap.exists()) {
-        router.replace("/doctor/dashboardDoctor");
+        Alert.alert("Succès", "Connexion réussie en tant que docteur !");
+        router.replace("/doctor/dashboard"); // ⚠️ assure-toi que le dossier existe exactement
         return;
       }
 
+      // Vérifie si l'utilisateur est un patient
       const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
+      console.log("userSnap.exists():", userSnap.exists());
 
       if (userSnap.exists()) {
-        router.replace("/dashboard");
+        Alert.alert("Succès", "Connexion réussie en tant que patient !");
+        router.replace("/patient/dashboard");
         return;
       }
 
-      Alert.alert("Erreur", "Rôle utilisateur introuvable");
+      // Si aucun rôle trouvé
+      console.warn("Utilisateur introuvable dans Firestore :", uid);
+      Alert.alert(
+        "Erreur",
+        "Utilisateur introuvable dans Firestore. Vérifie que le document existe dans 'doctors' ou 'users'."
+      );
 
     } catch (error: any) {
-      Alert.alert("Login error", error.message);
+      console.error("Login error:", error);
+      Alert.alert("Login error", error.message || "Erreur inconnue");
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>

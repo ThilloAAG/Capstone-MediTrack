@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { db, auth } from "../../src/firebase";
+import { db, auth } from "../../../src/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 type Prescription = {
@@ -47,22 +47,22 @@ export default function PrescriptionsScreen() {
   }, []);
 
   const handleAddPrescription = () => {
-    router.push("/prescriptions/new");
+    router.push("/patient/prescriptions/new");
   };
 
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case "dashboard":
-        router.push("/dashboard");
+        router.push("/patient/dashboard");
         break;
       case "machines":
-        router.push("/machines");
+        router.push("/patient/machines");
         break;
       case "notifications":
-        router.push("/notifications");
+        router.push("/patient/notifications");
         break;
       case "profile":
-        router.push("/profile");
+        router.push("/patient/profile");
         break;
       default:
         break;
@@ -105,7 +105,7 @@ export default function PrescriptionsScreen() {
                       index !== prescriptions.length - 1 &&
                         styles.prescriptionItemBorder,
                     ]}
-                    onPress={() => router.push(`/prescriptions/${p.id}`)}
+                    onPress={() => router.push(`/patient/prescriptions/${p.id}`)}
                     activeOpacity={0.8}
                   >
                     <View style={styles.prescriptionInfo}>

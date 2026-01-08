@@ -194,25 +194,25 @@ export default function NotificationsScreen() {
 
 
   const handleOpenPreferences = () => {
-    router.push("/notifications/preferences");
+    router.push("/patient/notifications/preferences");
   };
 
 
   const handleNavigateToTab = (tab) => {
     switch (tab) {
       case "dashboard":
-        router.push("/dashboard");
+        router.push("/patient/dashboard");
         break;
       case "prescriptions":
-        router.push("/prescriptions");
+        router.push("/patient/prescriptions");
         break;
       case "machines":
-        router.push("/machines");
+        router.push("/patient/machines");
         break;
       case "notifications":
         break;
       case "profile":
-        router.push("/profile");
+        router.push("/patient/profile");
         break;
       default:
         break;

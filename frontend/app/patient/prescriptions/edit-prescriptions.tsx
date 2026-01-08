@@ -7,7 +7,7 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { db, auth } from "../../src/firebase";
+import { db, auth } from "../../../src/firebase";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -100,7 +100,7 @@ export default function NewPrescriptionScreen() {
       });
 
       Alert.alert("Success", "Prescription updated!");
-      router.push("/prescriptions");
+      router.push("/patient/prescriptions");
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Unable to update the prescription.");

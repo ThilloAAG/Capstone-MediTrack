@@ -39,7 +39,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState<boolean>(true);
 
   const handleSettings = (): void => {
-    router.push('/profile');
+    router.push('/patient/profile');
   };
 
   const handleDispenseNow = (): void => {
@@ -53,16 +53,16 @@ export default function DashboardScreen() {
   const handleNavigateToTab = (tab: string): void => {
     switch (tab) {
       case 'prescriptions':
-        router.push('/prescriptions');
+        router.push('/patient/prescriptions');
         break;
       case 'machines':
-        router.push('/machines');
+        router.push('/patient/machines');
         break;
       case 'notifications':
-        router.push('/notifications');
+        router.push('/patient/notifications');
         break;
       case 'profile':
-        router.push('/profile');
+        router.push('/patient/profile');
         break;
     }
   };

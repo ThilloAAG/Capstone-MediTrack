@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, db } from '../../src/firebase';
+import { auth, db } from '../../../src/firebase';
 import { doc, onSnapshot, deleteDoc, collection, 
   getDocs } from 'firebase/firestore';
 
@@ -106,19 +106,19 @@ const handleDelete = () => {
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case 'dashboard':
-        router.push('/dashboard');
+        router.push('/patient/dashboard');
         break;
       case 'prescriptions':
-        router.push('/prescriptions');
+        router.push('/patient/prescriptions');
         break;
       case 'machines':
-        router.push('/machines');
+        router.push('/patient/machines');
         break;
       case 'notifications':
-        router.push('/notifications');
+        router.push('/patient/notifications');
         break;
       case 'profile':
-        router.push('/profile');
+        router.push('/patient/profile');
         break;
     }
   };
@@ -198,7 +198,7 @@ const handleDelete = () => {
                     style={styles.editButton}
                     onPress={() =>
                       router.push({
-                        pathname: '/prescriptions/edit-prescriptions',
+                        pathname: '/patient/prescriptions/edit-prescriptions',
                         params: { id: docId },
                       })
                     }
