@@ -156,9 +156,11 @@ export default function DoctorPatientDetail() {
                 <TouchableOpacity
                   style={[styles.actionRow, { borderBottomWidth: 0 }]}
                   activeOpacity={0.85}
-                  onPress={() =>
-                    Alert.alert("Coming soon", "Patient prescriptions list")
-                  }
+                  onPress={() => {
+                    if (!patientId) return;
+                    router.push(`/doctor/patients/${patientId}/prescriptions`);
+                  }}
+
                 >
                   <Ionicons
                     name="medical-outline"
