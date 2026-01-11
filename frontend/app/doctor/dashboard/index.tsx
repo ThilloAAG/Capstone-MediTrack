@@ -166,8 +166,6 @@ export default function DoctorDashboardScreen() {
           <View style={{ height: 90 }} />
         </ScrollView>
 
-        {/* Bottom Nav (Doctor) */}
-        import DoctorBottomNav from "../../../components/DoctorBottomNav";
 
        
 
