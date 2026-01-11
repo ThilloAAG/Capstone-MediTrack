@@ -8,7 +8,7 @@ import { router } from "expo-router";
 import { auth, db } from "../../../src/firebase";
 import { signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import DoctorBottomNav from "../../../components/DoctorBottomNav";
+
 
 export default function DoctorSettingsScreen() {
   const [loading, setLoading] = useState(true);
@@ -55,6 +55,7 @@ export default function DoctorSettingsScreen() {
   };
 
   return (
+    
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <View style={styles.wrapper}>
@@ -95,8 +96,7 @@ export default function DoctorSettingsScreen() {
             </>
           )}
         </ScrollView>
-
-        <DoctorBottomNav active="settings" />
+        
       </View>
     </SafeAreaView>
   );

@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../src/firebase";
 
 export default function SignupDoctor() {
@@ -39,28 +39,42 @@ export default function SignupDoctor() {
     try {
       setLoading(true);
 
-      // 1. Create auth account
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        email.trim(),
+        email.trim().toLowerCase(),
         password
       );
 
       const uid = userCredential.user.uid;
 
-      // 2. Save doctor in Firestore
-      await setDoc(doc(db, "doctors", uid), {
-        name: fullName,
-        specialty: specialty,
-        phone: phone,
-        email: email,
-        role: "doctor",
-        createdAt: new Date(),
-      });
+      // 1) doctors/{uid}
+      await setDoc(
+        doc(db, "doctors", uid),
+        {
+          name: fullName.trim(),
+          specialty: specialty.trim(),
+          phone: phone.trim(),
+          email: email.trim().toLowerCase(),
+          role: "doctor",
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
-      // 3. Redirect to doctor dashboard
-      router.replace("/doctor/dashboard");
+      // 2) users/{uid} (source de vérité)
+      await setDoc(
+        doc(db, "users", uid),
+        {
+          name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          role: "doctor",
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
+      // 3) Laisse index router
+      router.replace("/");
     } catch (error: any) {
       Alert.alert("Erreur", error.message);
     } finally {
@@ -153,57 +167,15 @@ export default function SignupDoctor() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f6f7f8",
-  },
-  keyboardContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  main: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  form: {
-    gap: 14,
-  },
-  input: {
-    backgroundColor: "#F1F5F9",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  passwordWrapper: {
-    position: "relative",
-  },
-  eyeIcon: {
-    position: "absolute",
-    right: 16,
-    top: 14,
-  },
-  button: {
-    backgroundColor: "#13a4ec",
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  backText: {
-    textAlign: "center",
-    color: "#64748B",
-    marginTop: 12,
-  },
+  container: { flex: 1, backgroundColor: "#f6f7f8" },
+  keyboardContainer: { flex: 1, paddingHorizontal: 24 },
+  main: { flex: 1, justifyContent: "center" },
+  title: { fontSize: 24, fontWeight: "700", textAlign: "center", marginBottom: 24 },
+  form: { gap: 14 },
+  input: { backgroundColor: "#F1F5F9", borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
+  passwordWrapper: { position: "relative" },
+  eyeIcon: { position: "absolute", right: 16, top: 14 },
+  button: { backgroundColor: "#13a4ec", paddingVertical: 14, borderRadius: 16, alignItems: "center", marginTop: 8 },
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  backText: { textAlign: "center", color: "#64748B", marginTop: 12 },
 });

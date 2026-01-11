@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { auth, db } from "../../../src/firebase";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
-import DoctorBottomNav from "../../../components/DoctorBottomNav";
+
 
 type Patient = {
   id: string;
@@ -27,7 +27,8 @@ export default function DoctorPatientsScreen() {
         const uid = auth.currentUser?.uid;
         if (!uid) {
           router.replace("/auth/login");
-          return;
+          return ;
+
         }
 
         // Fetch patients from users collection
@@ -121,12 +122,11 @@ export default function DoctorPatientsScreen() {
             </View>
           )}
         </ScrollView>
-
-        <DoctorBottomNav active="patients" />
       </View>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f6f7f8" },
