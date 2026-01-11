@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { auth, db } from "../../../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import DoctorBottomNav from "../../../../components/DoctorBottomNav";
 
 type Patient = {
   id: string;
@@ -185,7 +184,7 @@ export default function DoctorPatientDetail() {
           )}
         </ScrollView>
 
-        <DoctorBottomNav active="patients" />
+       
       </View>
     </SafeAreaView>
   );
