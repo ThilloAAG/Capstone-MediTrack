@@ -18,7 +18,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../src/firebase";
 import { useRouter } from "expo-router";
 
-
 export default function LoginScreen() {
   const router = useRouter();
 
@@ -33,6 +32,8 @@ export default function LoginScreen() {
         Alert.alert("Erreur", "Veuillez entrer email et mot de passe");
         return;
       }
+
+      setLoading(true); 
 
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -50,7 +51,7 @@ export default function LoginScreen() {
 
       if (doctorSnap.exists()) {
         Alert.alert("Succès", "Connexion réussie en tant que docteur !");
-        router.replace("/doctor/dashboard"); // ⚠️ assure-toi que le dossier existe exactement
+        router.replace("/doctor/dashboard");
         return;
       }
 
@@ -71,13 +72,13 @@ export default function LoginScreen() {
         "Erreur",
         "Utilisateur introuvable dans Firestore. Vérifie que le document existe dans 'doctors' ou 'users'."
       );
-
     } catch (error: any) {
       console.error("Login error:", error);
       Alert.alert("Login error", error.message || "Erreur inconnue");
+    } finally {
+      setLoading(false);
     }
   };
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,6 +101,7 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={!loading}
               />
 
               <View style={styles.passwordWrapper}>
@@ -111,11 +113,13 @@ export default function LoginScreen() {
                   onChangeText={setPassword}
                   secureTextEntry={!passwordVisible}
                   autoCapitalize="none"
+                  editable={!loading} 
                 />
 
                 <TouchableOpacity
                   style={styles.eyeIcon}
                   onPress={() => setPasswordVisible(!passwordVisible)}
+                  disabled={loading} 
                 >
                   <Ionicons
                     name={passwordVisible ? "eye-off" : "eye"}
@@ -140,10 +144,11 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={styles.footer}
-              onPress={() => router.push("/auth/signupscreenUpdated")}
+              onPress={() => router.push("/auth/signupscreen")} 
+              disabled={loading} // ✅ FIX: Disable while loading
             >
               <Text style={styles.footerText}>
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <Text style={styles.createAccountText}>Create Account</Text>
               </Text>
             </TouchableOpacity>
