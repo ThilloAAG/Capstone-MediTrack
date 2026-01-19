@@ -49,26 +49,6 @@ export default function Index() {
 
           // ✅ Route selon role
           if (role === "doctor") {
-            // Optionnel: s'assurer que doctors/{uid} existe (si tu veux une collection doctors)
-            const doctorRef = doc(db, "doctors", uid);
-            const doctorSnap = await getDoc(doctorRef);
-            console.log("🩺 doctorSnap.exists():", doctorSnap.exists());
-
-            if (!doctorSnap.exists()) {
-              console.log("🛠️ doctors/{uid} missing -> creating it (optional)");
-              await setDoc(
-                doctorRef,
-                {
-                  name: (userSnap.data() as any)?.name ?? user.displayName ?? "Doctor",
-                  email: (userSnap.data() as any)?.email ?? user.email ?? "",
-                  role: "doctor",
-                  createdAt: serverTimestamp(),
-                },
-                { merge: true }
-              );
-            }
-
-            console.log("➡️ Routing to /doctor/dashboard");
             router.replace("/doctor/dashboard");
             return;
           }

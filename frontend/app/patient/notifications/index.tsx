@@ -42,7 +42,7 @@ export default function NotificationsScreen() {
 
       // Load prescriptions
       const prescriptionsSnapshot = await getDocs(
-        collection(db, `prescriptions/${user.uid}/userPrescriptions`)
+        collection(db, "prescriptions", user.uid, "userPrescriptions")
       );
       const prescriptions = prescriptionsSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -53,7 +53,7 @@ export default function NotificationsScreen() {
 
       // Load preferences
       const preferencesSnapshot = await getDocs(
-        collection(db, `notificationPreferences/${user.uid}/preferences`)
+        collection(db, "notificationPreferences", user.uid, "preferences")
       );
       const preferences = preferencesSnapshot.docs.map((doc) => ({
         id: doc.id,

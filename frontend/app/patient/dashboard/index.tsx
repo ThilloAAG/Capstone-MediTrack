@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { db, auth } from '../../../src/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { generateUpcomingDoses } from '../../../services/upcomingDosesService';
-import { format, differenceInMinutes, addHours, isAfter, isBefore } from 'date-fns';
+// app/patient/dashboard/index.tsx
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { db, auth } from "../../../src/firebase";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { generateUpcomingDoses } from "../../../services/upcomingDosesService";
+import { format, differenceInMinutes, addHours, isAfter, isBefore } from "date-fns";
 
 interface Prescription {
   id: string;
@@ -29,7 +30,7 @@ interface UpcomingDose {
   scheduledTime: Date;
   scheduledTimeString: string;
   timeUntilDose: string;
-  status: 'upcoming' | 'overdue' | 'taken';
+  status: "upcoming" | "overdue" | "taken";
   reminderTime?: string;
 }
 
@@ -38,36 +39,35 @@ export default function DashboardScreen() {
   const [upcomingDoses, setUpcomingDoses] = useState<UpcomingDose[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const handleSettings = (): void => {
-    router.push('/patient/profile');
+  const handleAddDoctor = (): void => {
+    router.push("/patient/doctors/add");
   };
 
   const handleDispenseNow = (): void => {
-    Alert.alert('Dispense Now', 'Dispensing medication...');
+    Alert.alert("Dispense Now", "Dispensing medication...");
   };
 
   const handleEmergency = (): void => {
-    Alert.alert('Emergency', 'Calling emergency contact...');
+    Alert.alert("Emergency", "Calling emergency contact...");
   };
 
   const handleNavigateToTab = (tab: string): void => {
     switch (tab) {
-      case 'prescriptions':
-        router.push('/patient/prescriptions');
+      case "prescriptions":
+        router.push("/patient/prescriptions");
         break;
-      case 'machines':
-        router.push('/patient/machines');
+      case "machines":
+        router.push("/patient/machines");
         break;
-      case 'notifications':
-        router.push('/patient/notifications');
+      case "notifications":
+        router.push("/patient/notifications");
         break;
-      case 'profile':
-        router.push('/patient/profile');
+      case "profile":
+        router.push("/patient/profile");
         break;
     }
   };
 
-  // Load prescriptions from Firebase
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -76,8 +76,8 @@ export default function DashboardScreen() {
     }
 
     const q = query(
-      collection(db, 'prescriptions', user.uid, 'userPrescriptions'),
-      orderBy('createdAt', 'desc')
+      collection(db, "prescriptions", user.uid, "userPrescriptions"),
+      orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -85,15 +85,12 @@ export default function DashboardScreen() {
         id: doc.id,
         ...doc.data(),
       })) as Prescription[];
-      
-      console.log('📊 Loaded prescriptions:', data.length);
+
       setPrescriptions(data);
-      
-      // Generate upcoming doses
+
       const doses = generateUpcomingDoses(data);
-      console.log('💊 Generated doses:', doses.length);
       setUpcomingDoses(doses);
-      
+
       setLoading(false);
     });
 
@@ -108,7 +105,6 @@ export default function DashboardScreen() {
     );
   }
 
-  // Format time until dose
   const formatTimeUntil = (scheduledTime: Date): string => {
     const now = new Date();
     const mins = differenceInMinutes(scheduledTime, now);
@@ -118,53 +114,51 @@ export default function DashboardScreen() {
     return `in ${hours}h ${remainingMins}m`;
   };
 
-  // Filter doses for next 2 hours (FIXED VERSION)
   const now = new Date();
   const twoHoursLater = addHours(now, 2);
-  const nextTwoHoursDoses = upcomingDoses.filter(dose => 
-    dose.status === 'upcoming' && 
-    isAfter(dose.scheduledTime, now) && 
-    isBefore(dose.scheduledTime, twoHoursLater)
-  ).slice(0, 10);
+  const nextTwoHoursDoses = upcomingDoses
+    .filter(
+      (dose) =>
+        dose.status === "upcoming" &&
+        isAfter(dose.scheduledTime, now) &&
+        isBefore(dose.scheduledTime, twoHoursLater)
+    )
+    .slice(0, 10);
 
-  // Count all upcoming doses
   const oneDayLater = addHours(now, 24);
-  const totalUpcomingDoses = upcomingDoses.filter(d => 
-     d.status === 'upcoming' && 
-     isAfter(d.scheduledTime, now) && 
-     isBefore(d.scheduledTime, oneDayLater)
+  const totalUpcomingDoses = upcomingDoses.filter(
+    (d) =>
+      d.status === "upcoming" &&
+      isAfter(d.scheduledTime, now) &&
+      isBefore(d.scheduledTime, oneDayLater)
   ).length;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       <View style={styles.wrapper}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.spacer} />
           <Text style={styles.headerTitle}>Dashboard</Text>
-          <TouchableOpacity 
-            style={styles.settingsButton}
-            onPress={handleSettings}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="settings-outline" size={24} color="#111618" />
+
+          {/* ✅ Add Doctor button */}
+          <TouchableOpacity style={styles.settingsButton} onPress={handleAddDoctor} activeOpacity={0.8}>
+            <Ionicons name="person-add-outline" size={24} color="#111618" />
           </TouchableOpacity>
         </View>
 
-        {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          
-          {/* 💊 Upcoming Doses (Next 2 Hours) */}
+          {/* Upcoming Doses */}
           <View style={styles.upcomingDosesContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Upcoming Doses</Text>
               <Text style={styles.timeframeText}>Next 2 hours</Text>
             </View>
-            
+
             {nextTwoHoursDoses.length > 0 ? (
-              <ScrollView 
+              <ScrollView
                 style={styles.dosesScrollView}
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
@@ -179,7 +173,7 @@ export default function DashboardScreen() {
                       <Text style={styles.doseDosage}>{dose.dosage}</Text>
                     </View>
                     <View style={styles.doseTimeContainer}>
-                      <Text style={styles.doseTime}>{format(dose.scheduledTime, 'h:mm a')}</Text>
+                      <Text style={styles.doseTime}>{format(dose.scheduledTime, "h:mm a")}</Text>
                       <Text style={styles.doseCountdown}>{formatTimeUntil(dose.scheduledTime)}</Text>
                     </View>
                   </View>
@@ -193,7 +187,7 @@ export default function DashboardScreen() {
             )}
           </View>
 
-          {/* 📈 Health Insights */}
+          {/* Health Insights */}
           <View style={styles.healthInsightsContainer}>
             <Text style={styles.sectionTitle}>Health Insights</Text>
             <View style={styles.insightsGrid}>
@@ -215,23 +209,15 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {/* ⚡ Quick Actions */}
+          {/* Quick Actions */}
           <View style={styles.quickActionsContainer}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
-              <TouchableOpacity 
-                style={styles.primaryActionButton}
-                onPress={handleDispenseNow}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.primaryActionButton} onPress={handleDispenseNow} activeOpacity={0.8}>
                 <Text style={styles.primaryActionText}>Dispense Now</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.secondaryActionButton}
-                onPress={handleEmergency}
-                activeOpacity={0.8}
-              >
+
+              <TouchableOpacity style={styles.secondaryActionButton} onPress={handleEmergency} activeOpacity={0.8}>
                 <Text style={styles.secondaryActionText}>Emergency</Text>
               </TouchableOpacity>
             </View>
@@ -245,38 +231,22 @@ export default function DashboardScreen() {
             <Text style={[styles.navText, styles.navTextActive]}>Dashboard</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab('prescriptions')}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("prescriptions")} activeOpacity={0.8}>
             <Ionicons name="medical" size={24} color="#617c89" />
             <Text style={styles.navText}>Prescriptions</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab('machines')}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("machines")} activeOpacity={0.8}>
             <Ionicons name="hardware-chip" size={24} color="#617c89" />
             <Text style={styles.navText}>Machines</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab('notifications')}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("notifications")} activeOpacity={0.8}>
             <Ionicons name="notifications" size={24} color="#617c89" />
             <Text style={styles.navText}>Notifications</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab('profile')}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("profile")} activeOpacity={0.8}>
             <Ionicons name="person" size={24} color="#617c89" />
             <Text style={styles.navText}>Profile</Text>
           </TouchableOpacity>
@@ -287,219 +257,93 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f6f7f8',
-  },
-  wrapper: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#f6f7f8" },
+  wrapper: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f3f4',
+    borderBottomColor: "#f0f3f4",
   },
-  spacer: {
-    width: 48,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111618',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  main: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  // Upcoming Doses Section
-  upcomingDosesContainer: {
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111618',
-  },
-  timeframeText: {
-    fontSize: 12,
-    color: '#617c89',
-    fontWeight: '500',
-  },
-  dosesScrollView: {
-    maxHeight: 240,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 12,
-  },
-  doseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f3f4',
-  },
-  doseIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#e3f5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  doseDetails: {
-    flex: 1,
-  },
-  doseMedication: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111618',
-    marginBottom: 2,
-  },
-  doseDosage: {
-    fontSize: 12,
-    color: '#617c89',
-  },
-  doseTimeContainer: {
-    alignItems: 'flex-end',
-  },
-  doseTime: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#f59e0b',
-    marginBottom: 2,
-  },
-  doseCountdown: {
-    fontSize: 11,
-    color: '#617c89',
-  },
-  emptyDoses: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#617c89',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  // Health Insights
-  healthInsightsContainer: {
-    marginBottom: 24,
-  },
-  insightsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+  spacer: { width: 48 },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#111618" },
+  settingsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  main: { flex: 1, paddingHorizontal: 16 },
+
+  upcomingDosesContainer: { marginTop: 16, marginBottom: 24 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#111618" },
+  timeframeText: { fontSize: 12, color: "#617c89", fontWeight: "500" },
+  dosesScrollView: { maxHeight: 240, backgroundColor: "#ffffff", borderRadius: 16, padding: 12 },
+  doseCard: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f0f3f4" },
+  doseIconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#e3f5ff", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  doseDetails: { flex: 1 },
+  doseMedication: { fontSize: 14, fontWeight: "600", color: "#111618", marginBottom: 2 },
+  doseDosage: { fontSize: 12, color: "#617c89" },
+  doseTimeContainer: { alignItems: "flex-end" },
+  doseTime: { fontSize: 14, fontWeight: "600", color: "#f59e0b", marginBottom: 2 },
+  doseCountdown: { fontSize: 11, color: "#617c89" },
+  emptyDoses: { backgroundColor: "#ffffff", borderRadius: 16, padding: 32, alignItems: "center" },
+  emptyText: { fontSize: 14, color: "#617c89", marginTop: 8, textAlign: "center" },
+
+  healthInsightsContainer: { marginBottom: 24 },
+  insightsGrid: { flexDirection: "row", gap: 12 },
   insightCard: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
   },
-  insightValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111618',
-    marginTop: 8,
-  },
-  insightLabel: {
-    fontSize: 12,
-    color: '#617c89',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  // Quick Actions
-  quickActionsContainer: {
-    marginBottom: 24,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
+  insightValue: { fontSize: 24, fontWeight: "700", color: "#111618", marginTop: 8 },
+  insightLabel: { fontSize: 12, color: "#617c89", marginTop: 4, textAlign: "center" },
+
+  quickActionsContainer: { marginBottom: 24 },
+  quickActionsGrid: { flexDirection: "row", gap: 16 },
   primaryActionButton: {
     flex: 1,
     height: 48,
-    backgroundColor: '#13a4ec',
+    backgroundColor: "#13a4ec",
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#13a4ec',
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#13a4ec",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
-  primaryActionText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
+  primaryActionText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
   secondaryActionButton: {
     flex: 1,
     height: 48,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: '#f0f3f4',
+    borderColor: "#f0f3f4",
   },
-  secondaryActionText: {
-    color: '#111618',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  // Bottom Nav
+  secondaryActionText: { color: "#111618", fontSize: 14, fontWeight: "700" },
+
   bottomNavigation: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffffcc',
+    flexDirection: "row",
+    backgroundColor: "#ffffffcc",
     borderTopWidth: 1,
-    borderTopColor: '#f0f3f4',
+    borderTopColor: "#f0f3f4",
     paddingTop: 8,
     paddingBottom: 8,
   },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-  },
-  navText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#617c89',
-  },
-  navTextActive: {
-    color: '#13a4ec',
-    fontWeight: '600',
-  },
+  navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8 },
+  navText: { fontSize: 12, fontWeight: "500", color: "#617c89" },
+  navTextActive: { color: "#13a4ec", fontWeight: "600" },
 });

@@ -1,3 +1,4 @@
+// app/doctor/patients/[id]/new-prescription.tsx
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -22,10 +23,22 @@ import {
   collection,
   doc,
   getDoc,
+  query,
+  where,
+  getDocs,
   serverTimestamp,
 } from "firebase/firestore";
 
 type Frequency = "once" | "daily" | "weekly";
+
+async function ensureActiveLink(doctorId: string, patientId: string) {
+  // We use deterministic linkId: `${patientId}_${doctorId}`
+  const linkId = `${patientId}_${doctorId}`;
+  const linkSnap = await getDoc(doc(db, "doctorPatientLinks", linkId));
+  if (!linkSnap.exists()) return false;
+  const data = linkSnap.data() as any;
+  return data?.status === "active";
+}
 
 export default function NewPrescriptionScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -37,14 +50,13 @@ export default function NewPrescriptionScreen() {
 
   // ----- Form state -----
   const [medName, setMedName] = useState("");
-  const [dosage, setDosage] = useState(""); // ex: "10 mg" or "1 pill"
+  const [dosage, setDosage] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Basic schedule (simple version)
   const [frequency, setFrequency] = useState<Frequency>("daily");
-  const [timesPerDay, setTimesPerDay] = useState("1"); // for daily
-  const [startDate, setStartDate] = useState(""); // YYYY-MM-DD optional
-  const [endDate, setEndDate] = useState(""); // YYYY-MM-DD optional
+  const [timesPerDay, setTimesPerDay] = useState("1");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -83,40 +95,33 @@ export default function NewPrescriptionScreen() {
     try {
       setLoading(true);
 
-      // ✅ optional but recommended: verify doctor is linked to patient
-      // prevents confusing permission errors if link is missing
-      const linkSnap = await getDoc(doc(db, "doctors", doctorUid, "patients", patientId));
-      if (!linkSnap.exists()) {
+      // ✅ Security gate: doctor must be ACTIVE for this patient
+      const ok = await ensureActiveLink(doctorUid, patientId);
+      if (!ok) {
         Alert.alert(
-          "Not linked",
-          "This patient is not linked to your doctor account yet. Please add/link the patient first."
+          "Not authorized",
+          "You are not linked to this patient (active link required)."
         );
         return;
       }
 
-      // ✅ Save prescription
       const rxRef = collection(db, "prescriptions", patientId, "userPrescriptions");
 
       const payload = {
-        // identity
         doctorId: doctorUid,
         patientId,
 
-        // medication
         medicationName: medName.trim(),
         dosage: dosage.trim(),
         notes: notes.trim() || null,
 
-        // schedule (simple v1)
         frequency,
         timesPerDay: frequency === "daily" ? Number(timesPerDay) : null,
         startDate: startDate.trim() || null,
         endDate: endDate.trim() || null,
 
-        // status
         status: "active",
 
-        // timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -124,8 +129,6 @@ export default function NewPrescriptionScreen() {
       const created = await addDoc(rxRef, payload);
 
       Alert.alert("Success", `Prescription created ✅\nID: ${created.id}`);
-
-      // back to patient detail page
       router.back();
     } catch (e: any) {
       console.log("Create prescription error:", e);
@@ -149,9 +152,7 @@ export default function NewPrescriptionScreen() {
       activeOpacity={0.85}
       style={[styles.chip, active && styles.chipActive]}
     >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-        {label}
-      </Text>
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -160,13 +161,8 @@ export default function NewPrescriptionScreen() {
       <StatusBar style="dark" />
 
       <View style={styles.wrapper}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            activeOpacity={0.85}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
 
@@ -174,19 +170,14 @@ export default function NewPrescriptionScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-            {/* Patient context */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Patient</Text>
               <Text style={styles.muted}>Patient ID</Text>
               <Text style={styles.value}>{patientId || "Missing id"}</Text>
             </View>
 
-            {/* Medication */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Medication</Text>
 
@@ -216,7 +207,6 @@ export default function NewPrescriptionScreen() {
               />
             </View>
 
-            {/* Schedule */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Schedule</Text>
 
@@ -259,7 +249,6 @@ export default function NewPrescriptionScreen() {
               />
             </View>
 
-            {/* Save */}
             <TouchableOpacity
               style={[styles.saveBtn, loading && { opacity: 0.75 }]}
               onPress={onSave}
@@ -298,13 +287,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
 
   main: { flex: 1, padding: 16 },
@@ -342,10 +325,7 @@ const styles = StyleSheet.create({
     borderColor: "#cbd5e1",
     backgroundColor: "#fff",
   },
-  chipActive: {
-    backgroundColor: "#13a4ec",
-    borderColor: "#13a4ec",
-  },
+  chipActive: { backgroundColor: "#13a4ec", borderColor: "#13a4ec" },
   chipText: { fontWeight: "900", color: "#0f172a", fontSize: 12 },
   chipTextActive: { color: "#fff" },
 

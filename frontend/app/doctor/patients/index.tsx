@@ -23,128 +23,187 @@ import {
   orderBy,
   query,
   Timestamp,
+  where,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
+type LinkStatus = "pending" | "active" | "rejected";
+
 type DoctorPatientLink = {
-  patientId?: string; // parfois tu peux mettre patientId, parfois docId = patientId
-  addedAt?: Timestamp;
-  note?: string;
+  patientId: string;
+  doctorId: string;
+  status: LinkStatus;
+  createdAt?: Timestamp;
+  acceptedAt?: Timestamp | null;
 };
 
-type PatientProfile = {
+type UserProfile = {
   id: string;
   name?: string;
   email?: string;
   role?: string;
 };
 
+type Row = {
+  linkId: string;
+  link: DoctorPatientLink;
+  patient?: UserProfile;
+};
+
 export default function DoctorPatientsScreen() {
-  const [patients, setPatients] = useState<PatientProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"active" | "pending">("active");
+
+  const [activeRows, setActiveRows] = useState<Row[]>([]);
+  const [pendingRows, setPendingRows] = useState<Row[]>([]);
+  const [loadingActive, setLoadingActive] = useState(true);
+  const [loadingPending, setLoadingPending] = useState(true);
+
+  const doctorUid = auth.currentUser?.uid;
 
   useEffect(() => {
-    let unsubscribe: undefined | (() => void);
+    if (!doctorUid) {
+      router.replace("/auth/login");
+      return;
+    }
 
-    const run = async () => {
-      const doctorUid = auth.currentUser?.uid;
-      if (!doctorUid) {
-        router.replace("/auth/login");
-        return;
+    // Active links
+    const qActive = query(
+      collection(db, "doctorPatientLinks"),
+      where("doctorId", "==", doctorUid),
+      where("status", "==", "active"),
+      orderBy("acceptedAt", "desc")
+    );
+
+    const unsubActive = onSnapshot(
+      qActive,
+      async (snap) => {
+        try {
+          const rows: Row[] = await Promise.all(
+            snap.docs.map(async (d) => {
+              const link = d.data() as DoctorPatientLink;
+              const linkId = d.id;
+
+              // fetch patient profile
+              let patient: UserProfile | undefined = undefined;
+              try {
+                const pSnap = await getDoc(doc(db, "users", link.patientId));
+                if (pSnap.exists()) {
+                  patient = { id: pSnap.id, ...(pSnap.data() as any) };
+                }
+              } catch {}
+
+              return { linkId, link, patient };
+            })
+          );
+
+          setActiveRows(rows);
+        } catch (e) {
+          console.log("Active links error:", e);
+          setActiveRows([]);
+        } finally {
+          setLoadingActive(false);
+        }
+      },
+      (err) => {
+        console.log("Active links fetch error:", err);
+        setActiveRows([]);
+        setLoadingActive(false);
       }
+    );
 
-      try {
-        // Source of truth: doctors/{doctorUid}/patients/{patientId}
-        const linkRef = collection(db, "doctors", doctorUid, "patients");
-        const q = query(linkRef, orderBy("addedAt", "desc"));
+    // Pending links
+    const qPending = query(
+      collection(db, "doctorPatientLinks"),
+      where("doctorId", "==", doctorUid),
+      where("status", "==", "pending"),
+      orderBy("createdAt", "desc")
+    );
 
-        unsubscribe = onSnapshot(
-          q,
-          async (snap) => {
-            try {
-              if (snap.empty) {
-                setPatients([]);
-                setLoading(false);
-                return;
-              }
+    const unsubPending = onSnapshot(
+      qPending,
+      async (snap) => {
+        try {
+          const rows: Row[] = await Promise.all(
+            snap.docs.map(async (d) => {
+              const link = d.data() as DoctorPatientLink;
+              const linkId = d.id;
 
-              const links = snap.docs.map((d) => ({
-                id: d.id,
-                ...(d.data() as DoctorPatientLink),
-              }));
+              // fetch patient profile
+              let patient: UserProfile | undefined = undefined;
+              try {
+                const pSnap = await getDoc(doc(db, "users", link.patientId));
+                if (pSnap.exists()) {
+                  patient = { id: pSnap.id, ...(pSnap.data() as any) };
+                }
+              } catch {}
 
-              // fetch profiles from users/{patientId} in parallel
-              const profiles = await Promise.all(
-                links.map(async (link) => {
-                  const pid = link.patientId || link.id; // fallback doc id
-                  try {
-                    const userSnap = await getDoc(doc(db, "users", pid));
-                    if (!userSnap.exists()) {
-                      return { id: pid, name: "Unknown patient", email: pid } as PatientProfile;
-                    }
-                    const data = userSnap.data() as any;
+              return { linkId, link, patient };
+            })
+          );
 
-                    return {
-                      id: userSnap.id,
-                      name: data?.name ?? "Unnamed patient",
-                      email: data?.email ?? userSnap.id,
-                      role: data?.role,
-                    } as PatientProfile;
-                  } catch {
-                    return { id: pid, name: "Unknown patient", email: pid } as PatientProfile;
-                  }
-                })
-              );
-
-              setPatients(profiles);
-              setLoading(false);
-            } catch (e) {
-              console.log("Patients mapping error:", e);
-              setPatients([]);
-              setLoading(false);
-            }
-          },
-          (err) => {
-            console.log("Patients fetch error:", err);
-            setPatients([]);
-            setLoading(false);
-          }
-        );
-      } catch (e) {
-        console.log("Patients setup error:", e);
-        setPatients([]);
-        setLoading(false);
+          setPendingRows(rows);
+        } catch (e) {
+          console.log("Pending links error:", e);
+          setPendingRows([]);
+        } finally {
+          setLoadingPending(false);
+        }
+      },
+      (err) => {
+        console.log("Pending links fetch error:", err);
+        setPendingRows([]);
+        setLoadingPending(false);
       }
-    };
-
-    run();
+    );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      unsubActive();
+      unsubPending();
     };
-  }, []);
+  }, [doctorUid]);
 
-  const total = patients.length;
+  const totalActive = activeRows.length;
+  const totalPending = pendingRows.length;
 
-  const handleOpenPatient = (id: string) => {
-    router.push(`/doctor/patients/${id}`);
+  const acceptRequest = async (linkId: string) => {
+    try {
+      await updateDoc(doc(db, "doctorPatientLinks", linkId), {
+        status: "active",
+        acceptedAt: serverTimestamp(),
+      });
+      Alert.alert("Success", "Request accepted ✅");
+    } catch (e: any) {
+      console.log("Accept error:", e);
+      Alert.alert("Error", e?.message || "Failed to accept request");
+    }
   };
 
-  const emptyState = useMemo(() => {
-    if (loading) return null;
-    if (patients.length > 0) return null;
+  const rejectRequest = async (linkId: string) => {
+    Alert.alert("Reject request", "Reject this patient request?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await updateDoc(doc(db, "doctorPatientLinks", linkId), {
+              status: "rejected",
+            });
+          } catch (e: any) {
+            Alert.alert("Error", e?.message || "Failed to reject request");
+          }
+        },
+      },
+    ]);
+  };
 
-    return (
-      <View style={styles.empty}>
-        <Ionicons name="people-outline" size={52} color="#94a3b8" />
-        <Text style={styles.emptyTitle}>No patients yet</Text>
-        <Text style={styles.emptyText}>
-          Add a patient using the “+” button,{"\n"}
-          or create a link in Firestore under{"\n"}
-          doctors/{`{doctorId}`}/patients/{`{patientId}`}
-        </Text>
-      </View>
-    );
-  }, [loading, patients.length]);
+  const openPatient = (patientId: string) => {
+    router.push(`/doctor/patients/${patientId}`);
+  };
+
+  const rows = tab === "active" ? activeRows : pendingRows;
+  const loading = tab === "active" ? loadingActive : loadingPending;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -156,13 +215,14 @@ export default function DoctorPatientsScreen() {
           <View style={{ width: 40 }} />
           <Text style={styles.headerTitle}>Patients</Text>
 
-          {/* Right icons */}
+          {/* Right */}
           <View style={styles.headerRight}>
+            {/* In this new secure model, doctor does NOT add patients */}
             <TouchableOpacity
               onPress={() =>
                 Alert.alert(
-                  "Info",
-                  "This page reads doctors/{doctorId}/patients and then fetches users/{patientId}."
+                  "Secure linking",
+                  "Patients must request you first. Check Requests tab to accept."
                 )
               }
               style={styles.iconBtn}
@@ -170,27 +230,43 @@ export default function DoctorPatientsScreen() {
             >
               <Ionicons name="information-circle-outline" size={22} color="#111827" />
             </TouchableOpacity>
-
-            {/* ✅ Add patient */}
-            <TouchableOpacity
-              onPress={() => router.push("/doctor/patients/add")}
-              style={styles.iconBtn}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="person-add-outline" size={22} color="#13a4ec" />
-            </TouchableOpacity>
           </View>
         </View>
 
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === "active" && styles.tabBtnActive]}
+            onPress={() => setTab("active")}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.tabText, tab === "active" && styles.tabTextActive]}>
+              Active ({totalActive})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === "pending" && styles.tabBtnActive]}
+            onPress={() => setTab("pending")}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.tabText, tab === "pending" && styles.tabTextActive]}>
+              Requests ({totalPending})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* Stats card */}
+          {/* Summary */}
           <View style={styles.statsCard}>
             <View>
-              <Text style={styles.statsLabel}>Total patients</Text>
-              <Text style={styles.statsValue}>{loading ? "…" : total}</Text>
+              <Text style={styles.statsLabel}>
+                {tab === "active" ? "Total active patients" : "Pending requests"}
+              </Text>
+              <Text style={styles.statsValue}>{loading ? "…" : rows.length}</Text>
             </View>
             <View style={styles.statsIcon}>
-              <Ionicons name="people" size={22} color="#13a4ec" />
+              <Ionicons name={tab === "active" ? "people" : "mail"} size={22} color="#13a4ec" />
             </View>
           </View>
 
@@ -200,30 +276,73 @@ export default function DoctorPatientsScreen() {
               <View style={{ paddingVertical: 26 }}>
                 <ActivityIndicator size="large" color="#13a4ec" />
               </View>
-            ) : patients.length === 0 ? (
-              emptyState
+            ) : rows.length === 0 ? (
+              <View style={styles.empty}>
+                <Ionicons
+                  name={tab === "active" ? "people-outline" : "mail-open-outline"}
+                  size={52}
+                  color="#94a3b8"
+                />
+                <Text style={styles.emptyTitle}>
+                  {tab === "active" ? "No active patients yet" : "No requests yet"}
+                </Text>
+                <Text style={styles.emptyText}>
+                  {tab === "active"
+                    ? "Once a patient sends you a request and you accept, they will appear here."
+                    : "Patients will appear here after they add you from their app."}
+                </Text>
+              </View>
             ) : (
-              patients.map((p, idx) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.row, idx !== patients.length - 1 && styles.rowDivider]}
-                  activeOpacity={0.85}
-                  onPress={() => handleOpenPatient(p.id)}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(p.name?.[0] || "P").toUpperCase()}
-                    </Text>
-                  </View>
+              rows.map((r, idx) => {
+                const p = r.patient;
+                const name = p?.name || "Unnamed patient";
+                const email = p?.email || r.link.patientId;
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{p.name || "Unnamed patient"}</Text>
-                    <Text style={styles.sub}>{p.email || p.id}</Text>
-                  </View>
+                return (
+                  <View
+                    key={r.linkId}
+                    style={[styles.row, idx !== rows.length - 1 && styles.rowDivider]}
+                  >
+                    <TouchableOpacity
+                      style={styles.rowLeft}
+                      activeOpacity={0.85}
+                      onPress={() => openPatient(r.link.patientId)}
+                      disabled={tab !== "active"} // only navigate for active
+                    >
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>{(name?.[0] || "P").toUpperCase()}</Text>
+                      </View>
 
-                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-                </TouchableOpacity>
-              ))
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.name}>{name}</Text>
+                        <Text style={styles.sub}>{email}</Text>
+                      </View>
+
+                      {tab === "active" && <Ionicons name="chevron-forward" size={18} color="#94a3b8" />}
+                    </TouchableOpacity>
+
+                    {tab === "pending" && (
+                      <View style={styles.actions}>
+                        <TouchableOpacity
+                          style={[styles.smallBtn, styles.acceptBtn]}
+                          onPress={() => acceptRequest(r.linkId)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.smallBtnText}>Accept</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.smallBtn, styles.rejectBtn]}
+                          onPress={() => rejectRequest(r.linkId)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.smallBtnText, { color: "#ef4444" }]}>Reject</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })
             )}
           </View>
 
@@ -259,6 +378,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  tabs: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    gap: 10,
+  },
+  tabBtn: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  tabBtnActive: { borderColor: "#13a4ec" },
+  tabText: { fontWeight: "900", color: "#64748b" },
+  tabTextActive: { color: "#13a4ec" },
+
   main: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
 
   statsCard: {
@@ -291,14 +429,10 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
-  },
+  row: { paddingHorizontal: 14, paddingVertical: 14 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+
+  rowLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
 
   avatar: {
     width: 44,
@@ -313,14 +447,19 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontWeight: "900", color: "#111827" },
   sub: { marginTop: 2, fontSize: 12, fontWeight: "700", color: "#64748b" },
 
-  empty: { paddingVertical: 30, alignItems: "center" },
-  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900", color: "#111827" },
-  emptyText: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 18,
+  actions: { flexDirection: "row", gap: 10, marginTop: 10 },
+  smallBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
   },
+  acceptBtn: { backgroundColor: "#13a4ec", borderColor: "#13a4ec" },
+  rejectBtn: { backgroundColor: "#ffffff", borderColor: "#fecaca" },
+  smallBtnText: { fontWeight: "900", color: "#ffffff" },
+
+  empty: { paddingVertical: 30, alignItems: "center", paddingHorizontal: 14 },
+  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900", color: "#111827" },
+  emptyText: { marginTop: 6, fontSize: 12, fontWeight: "700", color: "#64748b", textAlign: "center", lineHeight: 18 },
 });

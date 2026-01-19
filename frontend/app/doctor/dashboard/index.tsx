@@ -16,7 +16,6 @@ import { router } from "expo-router";
 import { auth, db } from "../../../src/firebase";
 import {
   collection,
-  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -35,9 +34,11 @@ type PatientProfile = {
   lastUpdate?: string;
 };
 
-type DoctorPatientLink = {
-  patientId?: string;
-  addedAt?: any;
+type Link = {
+  patientId: string;
+  doctorId: string;
+  status: "pending" | "active" | "rejected";
+  acceptedAt?: any;
 };
 
 export default function DoctorDashboardScreen() {
@@ -47,7 +48,7 @@ export default function DoctorDashboardScreen() {
   const [activeRx, setActiveRx] = useState(0);
   const [loadingRx, setLoadingRx] = useState(true);
 
-  // ---------- LOAD PATIENTS (REAL) ----------
+  // ✅ Load ACTIVE linked patients via doctorPatientLinks
   useEffect(() => {
     const doctorUid = auth.currentUser?.uid;
     if (!doctorUid) {
@@ -55,8 +56,13 @@ export default function DoctorDashboardScreen() {
       return;
     }
 
-    const linksRef = collection(db, "doctors", doctorUid, "patients");
-    const qLinks = query(linksRef, orderBy("addedAt", "desc"));
+    const qLinks = query(
+      collection(db, "doctorPatientLinks"),
+      where("doctorId", "==", doctorUid),
+      where("status", "==", "active"),
+      orderBy("acceptedAt", "desc"),
+      limit(50)
+    );
 
     const unsub = onSnapshot(
       qLinks,
@@ -68,10 +74,7 @@ export default function DoctorDashboardScreen() {
             return;
           }
 
-          const links = snap.docs.map((d) => {
-            const data = d.data() as DoctorPatientLink;
-            return { docId: d.id, patientId: data.patientId ?? d.id };
-          });
+          const links = snap.docs.map((d) => d.data() as Link);
 
           const profiles = await Promise.all(
             links.map(async (l) => {
@@ -97,7 +100,7 @@ export default function DoctorDashboardScreen() {
           setPatients(profiles);
           setLoadingPatients(false);
         } catch (e) {
-          console.log("Dashboard patients error:", e);
+          console.log("Dashboard patients mapping error:", e);
           setPatients([]);
           setLoadingPatients(false);
         }
@@ -112,7 +115,8 @@ export default function DoctorDashboardScreen() {
     return () => unsub();
   }, []);
 
-  // ---------- LOAD ACTIVE PRESCRIPTIONS ----------
+  // ✅ Compute "Active Prescriptions" as total prescriptions for ACTIVE linked patients
+  // (No collectionGroup, respects your linkActive() rules)
   useEffect(() => {
     const doctorUid = auth.currentUser?.uid;
     if (!doctorUid) return;
@@ -121,15 +125,30 @@ export default function DoctorDashboardScreen() {
       try {
         setLoadingRx(true);
 
-        const rxQ = query(
-          collectionGroup(db, "userPrescriptions"),
-          where("doctorId", "==", doctorUid),
-          where("status", "==", "active"),
-          limit(500)
+        if (!patients.length) {
+          setActiveRx(0);
+          return;
+        }
+
+        // Simple count: sum of docs under prescriptions/{patientId}/userPrescriptions
+        // (If you add a "status" field later, you can filter per subcollection.)
+        const counts = await Promise.all(
+          patients.map(async (p) => {
+            try {
+              const rxSnap = await getDocs(
+                query(collection(db, "prescriptions", p.id, "userPrescriptions"), limit(500))
+              );
+              return rxSnap.size;
+            } catch (e) {
+              // If link/rules not active, read will fail => count 0 for that patient
+              console.log("Rx count error for patient:", p.id, e);
+              return 0;
+            }
+          })
         );
 
-        const snap = await getDocs(rxQ);
-        setActiveRx(snap.size);
+        const total = counts.reduce((sum, n) => sum + n, 0);
+        setActiveRx(total);
       } catch (e) {
         console.log("Dashboard activeRx error:", e);
         setActiveRx(0);
@@ -139,7 +158,7 @@ export default function DoctorDashboardScreen() {
     };
 
     run();
-  }, []);
+  }, [patients]);
 
   const totalPatients = patients.length;
 
@@ -154,7 +173,8 @@ export default function DoctorDashboardScreen() {
   };
 
   const goPatients = () => router.push("/doctor/patients");
-  const goProfile = () => router.push("/doctor/settings"); // route existante
+  const goProfile = () => router.push("/doctor/settings");
+  const goRequests = () => router.push("/doctor/patients/requests");
 
   return (
     <SafeAreaView style={styles.container}>
@@ -163,9 +183,13 @@ export default function DoctorDashboardScreen() {
       <View style={styles.wrapper}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.spacer} />
+          <TouchableOpacity style={styles.iconBtn} onPress={goRequests} activeOpacity={0.85}>
+            <Ionicons name="mail-unread-outline" size={22} color="#111618" />
+          </TouchableOpacity>
+
           <Text style={styles.headerTitle}>Doctor Dashboard</Text>
-          <TouchableOpacity style={styles.settingsButton} onPress={goProfile} activeOpacity={0.85}>
+
+          <TouchableOpacity style={styles.iconBtn} onPress={goProfile} activeOpacity={0.85}>
             <Ionicons name="person-outline" size={22} color="#111618" />
           </TouchableOpacity>
         </View>
@@ -190,7 +214,7 @@ export default function DoctorDashboardScreen() {
                 <Ionicons name="medical" size={18} color="#13a4ec" />
               </View>
               <Text style={styles.statValue}>{loadingRx ? "…" : activeRx}</Text>
-              <Text style={styles.statLabel}>Active Prescriptions</Text>
+              <Text style={styles.statLabel}>Prescriptions</Text>
             </View>
 
             <View style={styles.statCard}>
@@ -208,22 +232,14 @@ export default function DoctorDashboardScreen() {
           </View>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.primaryAction}
-              onPress={goPatients}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.primaryAction} onPress={goPatients} activeOpacity={0.85}>
               <Ionicons name="people-outline" size={18} color="#ffffff" />
               <Text style={styles.primaryActionText}>View Patients</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.secondaryAction}
-              onPress={goProfile}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="person-outline" size={18} color="#0A84FF" />
-              <Text style={styles.secondaryActionText}>Profile</Text>
+            <TouchableOpacity style={styles.secondaryAction} onPress={goRequests} activeOpacity={0.85}>
+              <Ionicons name="mail-outline" size={18} color="#0A84FF" />
+              <Text style={styles.secondaryActionText}>Requests</Text>
             </TouchableOpacity>
           </View>
 
@@ -242,9 +258,9 @@ export default function DoctorDashboardScreen() {
               </View>
             ) : patients.length === 0 ? (
               <View style={{ padding: 18 }}>
-                <Text style={{ fontWeight: "900", color: "#111618" }}>No patients yet</Text>
+                <Text style={{ fontWeight: "900", color: "#111618" }}>No active patients</Text>
                 <Text style={{ marginTop: 6, color: "#6b7280", fontWeight: "600" }}>
-                  Link a patient from the Patients tab (Add patient).
+                  Patients must send you a request, then accept it in Requests.
                 </Text>
               </View>
             ) : (
@@ -301,16 +317,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  spacer: { width: 44 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: "#111618",
     flex: 1,
     textAlign: "center",
-    paddingRight: 44,
   },
-  settingsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
 
   main: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
 
