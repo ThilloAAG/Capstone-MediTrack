@@ -32,22 +32,22 @@ export default function MachinesScreen() {
   };
 
   const handleMachinePress = (machineId: string) => {
-    router.push(`/machines/${machineId}`);
+    router.push(`/patient/machines/${machineId}`);
   };
 
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case 'dashboard':
-        router.push('/dashboard');
+        router.push('/patient/dashboard');
         break;
       case 'prescriptions':
-        router.push('/prescriptions');
+        router.push('/patient/prescriptions');
         break;
       case 'notifications':
-        router.push('/notifications');
+        router.push('/patient/notifications');
         break;
       case 'profile':
-        router.push('/profile');
+        router.push('/patient/profile');
         break;
       default:
         break;

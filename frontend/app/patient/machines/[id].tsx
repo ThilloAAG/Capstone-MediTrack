@@ -53,13 +53,13 @@ export default function MachineDetailScreen() {
   const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case 'dashboard':
-        router.push('/dashboard');
+        router.push('/patient/dashboard');
         break;
       case 'prescriptions':
-        router.push('/prescriptions');
+        router.push('/patient/prescriptions');
         break;
       case 'notifications':
-        router.push('/notifications');
+        router.push('/patient/notifications');
         break;
       case 'profile':
         console.log('Navigate to profile');
