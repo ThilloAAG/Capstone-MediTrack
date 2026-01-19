@@ -55,7 +55,6 @@ export default function DoctorDashboardScreen() {
       return;
     }
 
-    // doctors/{doctorUid}/patients
     const linksRef = collection(db, "doctors", doctorUid, "patients");
     const qLinks = query(linksRef, orderBy("addedAt", "desc"));
 
@@ -74,7 +73,6 @@ export default function DoctorDashboardScreen() {
             return { docId: d.id, patientId: data.patientId ?? d.id };
           });
 
-          // Fetch user profiles in parallel
           const profiles = await Promise.all(
             links.map(async (l) => {
               try {
@@ -114,7 +112,7 @@ export default function DoctorDashboardScreen() {
     return () => unsub();
   }, []);
 
-  // ---------- LOAD ACTIVE PRESCRIPTIONS (REAL, via doctorId) ----------
+  // ---------- LOAD ACTIVE PRESCRIPTIONS ----------
   useEffect(() => {
     const doctorUid = auth.currentUser?.uid;
     if (!doctorUid) return;
@@ -123,9 +121,6 @@ export default function DoctorDashboardScreen() {
       try {
         setLoadingRx(true);
 
-        // Requires prescriptions docs to contain:
-        // doctorId: <doctorUid>, status: "active"
-        // and stored under prescriptions/{patientId}/userPrescriptions/{rxId}
         const rxQ = query(
           collectionGroup(db, "userPrescriptions"),
           where("doctorId", "==", doctorUid),
@@ -136,7 +131,6 @@ export default function DoctorDashboardScreen() {
         const snap = await getDocs(rxQ);
         setActiveRx(snap.size);
       } catch (e) {
-        // If not set up yet, keep it safe at 0
         console.log("Dashboard activeRx error:", e);
         setActiveRx(0);
       } finally {
@@ -160,7 +154,7 @@ export default function DoctorDashboardScreen() {
   };
 
   const goPatients = () => router.push("/doctor/patients");
-  const goSettings = () => router.push("/doctor/settings");
+  const goProfile = () => router.push("/doctor/settings"); // route existante
 
   return (
     <SafeAreaView style={styles.container}>
@@ -171,8 +165,8 @@ export default function DoctorDashboardScreen() {
         <View style={styles.header}>
           <View style={styles.spacer} />
           <Text style={styles.headerTitle}>Doctor Dashboard</Text>
-          <TouchableOpacity style={styles.settingsButton} onPress={goSettings} activeOpacity={0.85}>
-            <Ionicons name="settings-outline" size={22} color="#111618" />
+          <TouchableOpacity style={styles.settingsButton} onPress={goProfile} activeOpacity={0.85}>
+            <Ionicons name="person-outline" size={22} color="#111618" />
           </TouchableOpacity>
         </View>
 
@@ -196,7 +190,7 @@ export default function DoctorDashboardScreen() {
                 <Ionicons name="medical" size={18} color="#13a4ec" />
               </View>
               <Text style={styles.statValue}>{loadingRx ? "…" : activeRx}</Text>
-              <Text style={styles.statLabel}>Active Rx</Text>
+              <Text style={styles.statLabel}>Active Prescriptions</Text>
             </View>
 
             <View style={styles.statCard}>
@@ -225,11 +219,11 @@ export default function DoctorDashboardScreen() {
 
             <TouchableOpacity
               style={styles.secondaryAction}
-              onPress={goSettings}
+              onPress={goProfile}
               activeOpacity={0.85}
             >
-              <Ionicons name="settings-outline" size={18} color="#0A84FF" />
-              <Text style={styles.secondaryActionText}>Settings</Text>
+              <Ionicons name="person-outline" size={18} color="#0A84FF" />
+              <Text style={styles.secondaryActionText}>Profile</Text>
             </TouchableOpacity>
           </View>
 

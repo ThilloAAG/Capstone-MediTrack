@@ -20,7 +20,7 @@ export default function DoctorLayout() {
           backgroundColor: "#FFFFFF",
           borderTopWidth: 1,
           borderTopColor: BORDER,
-          height: 80,            // 👈 hauteur iOS clean
+          height: 80,
           paddingBottom: 10,
           paddingTop: 6,
         },
@@ -31,31 +31,16 @@ export default function DoctorLayout() {
         },
 
         tabBarIconStyle: {
-          marginBottom: 2,       // 👈 espace icône → label
+          marginBottom: 2,
         },
 
         tabBarLabelStyle: {
-          fontSize: 12,          // 👈 taille normale
+          fontSize: 12,
           fontWeight: "600",
         },
       }}
     >
-      {/* LEFT — Settings */}
-      <Tabs.Screen
-        name="settings/index"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "settings" : "settings-outline"}
-              size={26}           // 👈 taille icône FIX
-              color={color}
-            />
-          ),
-        }}
-      />
-
-      {/* MIDDLE — Dashboard */}
+      {/* 1) Dashboard */}
       <Tabs.Screen
         name="dashboard/index"
         options={{
@@ -70,7 +55,7 @@ export default function DoctorLayout() {
         }}
       />
 
-      {/* RIGHT — Patients */}
+      {/* 2) Patients */}
       <Tabs.Screen
         name="patients"
         options={{
@@ -78,6 +63,21 @@ export default function DoctorLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "people" : "people-outline"}
+              size={26}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      {/* 3) Profile (route settings/index existante) */}
+      <Tabs.Screen
+        name="settings/index"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
               size={26}
               color={color}
             />
