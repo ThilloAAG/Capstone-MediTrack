@@ -1,4 +1,3 @@
-// app/doctor/settings/index.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -18,11 +17,11 @@ import { router } from "expo-router";
 import { auth, db } from "../../../src/firebase";
 import { signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { doctorNotificationPreferencesService } from "../../../services/doctorNotificationPreferencesService";
 
 type DoctorProfile = {
   name?: string;
   department?: string;
-  // future: photoURL, title, etc.
 };
 
 function Row({
@@ -66,21 +65,22 @@ function Row({
 
 export default function DoctorProfileScreen() {
   const [loading, setLoading] = useState(true);
+  const [savingPrefs, setSavingPrefs] = useState(false);
 
   const [doctorName, setDoctorName] = useState<string>("");
   const [doctorEmail, setDoctorEmail] = useState<string>("");
   const [department, setDepartment] = useState<string>("");
+  const [doctorId, setDoctorId] = useState<string>("");
 
-  // ---- Notification preferences (placeholder local state) ----
-  // Your teammate can later connect these to Firestore.
+  // Notification preferences
   const [urgentPatientAlerts, setUrgentPatientAlerts] = useState(true);
   const [prescriptionRenewalRequests, setPrescriptionRenewalRequests] = useState(true);
-  const [missedDoseFlags, setMissedDoseFlags] = useState(false);
+  const [missedDoseAlerts, setMissedDoseAlerts] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState(true);
 
-  // ---- Preferences (placeholder) ----
   const availability = useMemo(() => "Auto", []);
 
+  // Load doctor profile and preferences
   useEffect(() => {
     const run = async () => {
       try {
@@ -90,22 +90,75 @@ export default function DoctorProfileScreen() {
           return;
         }
 
+        setDoctorId(uid);
         setDoctorEmail(auth.currentUser?.email || "");
 
+        // Load profile data
         const snap = await getDoc(doc(db, "users", uid));
         if (snap.exists()) {
           const data = snap.data() as DoctorProfile;
           setDoctorName(data?.name || "");
           setDepartment(data?.department || "");
         }
+
+        // Load notification preferences
+        const prefs =
+          await doctorNotificationPreferencesService.getPreferences(uid);
+        setUrgentPatientAlerts(prefs.urgentPatientAlerts ?? true);
+        setPrescriptionRenewalRequests(
+          prefs.prescriptionRenewalRequests ?? true
+        );
+        setMissedDoseAlerts(prefs.missedDoseAlerts ?? true);
+        setWeeklySummary(prefs.weeklySummary ?? true);
       } catch (e) {
-        console.log("Doctor profile load error:", e);
+        console.log("❌ Doctor profile load error:", e);
       } finally {
         setLoading(false);
       }
     };
     run();
   }, []);
+
+  // Save preference
+  const savePreference = async (
+    prefKey: string,
+    value: boolean
+  ) => {
+    try {
+      setSavingPrefs(true);
+      await doctorNotificationPreferencesService.updatePreference(
+        doctorId,
+        prefKey,
+        value
+      );
+      console.log("✅ Preference saved:", prefKey, value);
+    } catch (e) {
+      console.error("❌ Error saving preference:", e);
+      Alert.alert("Error", "Failed to save preference");
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  const handleUrgentToggle = (value: boolean) => {
+    setUrgentPatientAlerts(value);
+    savePreference("urgentPatientAlerts", value);
+  };
+
+  const handleRenewalToggle = (value: boolean) => {
+    setPrescriptionRenewalRequests(value);
+    savePreference("prescriptionRenewalRequests", value);
+  };
+
+  const handleMissedDoseToggle = (value: boolean) => {
+    setMissedDoseAlerts(value);
+    savePreference("missedDoseAlerts", value);
+  };
+
+  const handleWeeklySummaryToggle = (value: boolean) => {
+    setWeeklySummary(value);
+    savePreference("weeklySummary", value);
+  };
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
@@ -154,8 +207,10 @@ export default function DoctorProfileScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => {
-                      // later: edit avatar/photo
-                      Alert.alert("Coming soon", "Profile photo editing is not implemented yet.");
+                      Alert.alert(
+                        "Coming soon",
+                        "Profile photo editing is not implemented yet."
+                      );
                     }}
                     style={styles.avatarEdit}
                   >
@@ -169,8 +224,10 @@ export default function DoctorProfileScreen() {
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => {
-                    // later: edit bio screen
-                    Alert.alert("Coming soon", "Edit Professional Bio is not implemented yet.");
+                    Alert.alert(
+                      "Coming soon",
+                      "Edit Professional Bio is not implemented yet."
+                    );
                   }}
                 >
                   <Text style={styles.linkText}>Edit Professional Bio</Text>
@@ -184,13 +241,24 @@ export default function DoctorProfileScreen() {
                   icon="calendar-outline"
                   label="Availability"
                   right={
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: "#64748b", fontWeight: "800" }}>{availability}</Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Text style={{ color: "#64748b", fontWeight: "800" }}>
+                        {availability}
+                      </Text>
                       <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                     </View>
                   }
                   onPress={() => {
-                    Alert.alert("Coming soon", "Availability settings are not implemented yet.");
+                    Alert.alert(
+                      "Coming soon",
+                      "Availability settings are not implemented yet."
+                    );
                   }}
                 />
 
@@ -200,7 +268,10 @@ export default function DoctorProfileScreen() {
                   icon="eye-outline"
                   label="Patient Data Visibility"
                   onPress={() => {
-                    Alert.alert("Coming soon", "Visibility settings are not implemented yet.");
+                    Alert.alert(
+                      "Coming soon",
+                      "Visibility settings are not implemented yet."
+                    );
                   }}
                 />
               </View>
@@ -213,7 +284,13 @@ export default function DoctorProfileScreen() {
                   iconBg="#FEF2F2"
                   iconColor="#EF4444"
                   label="Urgent Patient Alerts"
-                  right={<Switch value={urgentPatientAlerts} onValueChange={setUrgentPatientAlerts} />}
+                  right={
+                    <Switch
+                      value={urgentPatientAlerts}
+                      onValueChange={handleUrgentToggle}
+                      disabled={savingPrefs}
+                    />
+                  }
                   showChevron={false}
                 />
 
@@ -227,7 +304,8 @@ export default function DoctorProfileScreen() {
                   right={
                     <Switch
                       value={prescriptionRenewalRequests}
-                      onValueChange={setPrescriptionRenewalRequests}
+                      onValueChange={handleRenewalToggle}
+                      disabled={savingPrefs}
                     />
                   }
                   showChevron={false}
@@ -239,8 +317,14 @@ export default function DoctorProfileScreen() {
                   icon="time-outline"
                   iconBg="#FFF7ED"
                   iconColor="#F59E0B"
-                  label="Missed Dose Flags"
-                  right={<Switch value={missedDoseFlags} onValueChange={setMissedDoseFlags} />}
+                  label="Missed Dose Alerts"
+                  right={
+                    <Switch
+                      value={missedDoseAlerts}
+                      onValueChange={handleMissedDoseToggle}
+                      disabled={savingPrefs}
+                    />
+                  }
                   showChevron={false}
                 />
 
@@ -251,13 +335,18 @@ export default function DoctorProfileScreen() {
                   iconBg="#ECFDF5"
                   iconColor="#22C55E"
                   label="Weekly Summary"
-                  right={<Switch value={weeklySummary} onValueChange={setWeeklySummary} />}
+                  right={
+                    <Switch
+                      value={weeklySummary}
+                      onValueChange={handleWeeklySummaryToggle}
+                      disabled={savingPrefs}
+                    />
+                  }
                   showChevron={false}
                 />
 
                 <Text style={styles.helperText}>
-                  These toggles control which notifications you can receive to avoid being spammed.
-                  The notifications inbox page will be implemented later.
+                  🔔 Toggle which notifications you want to receive. When disabled, you will not be notified of that type of event. Your preferences are saved automatically.
                 </Text>
               </View>
 
@@ -284,7 +373,11 @@ export default function DoctorProfileScreen() {
               {/* Security */}
               <Text style={styles.sectionLabel}>SECURITY</Text>
               <View style={styles.card}>
-                <TouchableOpacity style={styles.logoutRow} activeOpacity={0.85} onPress={handleLogout}>
+                <TouchableOpacity
+                  style={styles.logoutRow}
+                  activeOpacity={0.85}
+                  onPress={handleLogout}
+                >
                   <View style={[styles.rowIconWrap, { backgroundColor: "#FEF2F2" }]}>
                     <Ionicons name="log-out-outline" size={18} color="#EF4444" />
                   </View>

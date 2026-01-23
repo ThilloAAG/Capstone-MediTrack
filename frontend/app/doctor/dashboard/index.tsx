@@ -1,18 +1,15 @@
-// app/doctor/dashboard/index.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-
+import { useRouter } from "expo-router";
+import { getAuth } from "firebase/auth";
 import { auth, db } from "../../../src/firebase";
 import {
   collection,
@@ -28,10 +25,10 @@ import {
 
 type PatientProfile = {
   id: string;
-  name?: string;
-  email?: string;
-  risk?: "low" | "medium" | "high";
-  lastUpdate?: string;
+  name: string;
+  email: string;
+  risk?: "high" | "medium" | "low";
+  lastUpdate?: any;
 };
 
 type Link = {
@@ -42,19 +39,16 @@ type Link = {
 };
 
 export default function DoctorDashboardScreen() {
+  const router = useRouter();
   const [patients, setPatients] = useState<PatientProfile[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
-
   const [activeRx, setActiveRx] = useState(0);
   const [loadingRx, setLoadingRx] = useState(true);
 
   // ✅ Load ACTIVE linked patients via doctorPatientLinks
   useEffect(() => {
     const doctorUid = auth.currentUser?.uid;
-    if (!doctorUid) {
-      router.replace("/auth/login");
-      return;
-    }
+    if (!doctorUid) return;
 
     const qLinks = query(
       collection(db, "doctorPatientLinks"),
@@ -81,7 +75,11 @@ export default function DoctorDashboardScreen() {
               try {
                 const userSnap = await getDoc(doc(db, "users", l.patientId));
                 if (!userSnap.exists()) {
-                  return { id: l.patientId, name: "Unknown patient", email: l.patientId } as PatientProfile;
+                  return {
+                    id: l.patientId,
+                    name: "Unknown patient",
+                    email: l.patientId,
+                  } as PatientProfile;
                 }
                 const data = userSnap.data() as any;
                 return {
@@ -92,7 +90,11 @@ export default function DoctorDashboardScreen() {
                   lastUpdate: data?.lastUpdate ?? undefined,
                 } as PatientProfile;
               } catch {
-                return { id: l.patientId, name: "Unknown patient", email: l.patientId } as PatientProfile;
+                return {
+                  id: l.patientId,
+                  name: "Unknown patient",
+                  email: l.patientId,
+                } as PatientProfile;
               }
             })
           );
@@ -115,8 +117,7 @@ export default function DoctorDashboardScreen() {
     return () => unsub();
   }, []);
 
-  // ✅ Compute "Active Prescriptions" as total prescriptions for ACTIVE linked patients
-  // (No collectionGroup, respects your linkActive() rules)
+  // ✅ Compute "Active Prescriptions"
   useEffect(() => {
     const doctorUid = auth.currentUser?.uid;
     if (!doctorUid) return;
@@ -130,17 +131,17 @@ export default function DoctorDashboardScreen() {
           return;
         }
 
-        // Simple count: sum of docs under prescriptions/{patientId}/userPrescriptions
-        // (If you add a "status" field later, you can filter per subcollection.)
         const counts = await Promise.all(
           patients.map(async (p) => {
             try {
               const rxSnap = await getDocs(
-                query(collection(db, "prescriptions", p.id, "userPrescriptions"), limit(500))
+                query(
+                  collection(db, "prescriptions", p.id, "userPrescriptions"),
+                  limit(500)
+                )
               );
               return rxSnap.size;
             } catch (e) {
-              // If link/rules not active, read will fail => count 0 for that patient
               console.log("Rx count error for patient:", p.id, e);
               return 0;
             }
@@ -177,19 +178,25 @@ export default function DoctorDashboardScreen() {
   const goRequests = () => router.push("/doctor/patients/requests");
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-
+    <View style={styles.container}>
       <View style={styles.wrapper}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconBtn} onPress={goRequests} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={goRequests}
+            activeOpacity={0.85}
+          >
             <Ionicons name="mail-unread-outline" size={22} color="#111618" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Doctor Dashboard</Text>
 
-          <TouchableOpacity style={styles.iconBtn} onPress={goProfile} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={goProfile}
+            activeOpacity={0.85}
+          >
             <Ionicons name="person-outline" size={22} color="#111618" />
           </TouchableOpacity>
         </View>
@@ -205,7 +212,9 @@ export default function DoctorDashboardScreen() {
               <View style={[styles.statIcon, { backgroundColor: "#0A84FF18" }]}>
                 <Ionicons name="people" size={18} color="#0A84FF" />
               </View>
-              <Text style={styles.statValue}>{loadingPatients ? "…" : totalPatients}</Text>
+              <Text style={styles.statValue}>
+                {loadingPatients ? "…" : totalPatients}
+              </Text>
               <Text style={styles.statLabel}>Patients</Text>
             </View>
 
@@ -213,7 +222,9 @@ export default function DoctorDashboardScreen() {
               <View style={[styles.statIcon, { backgroundColor: "#13a4ec20" }]}>
                 <Ionicons name="medical" size={18} color="#13a4ec" />
               </View>
-              <Text style={styles.statValue}>{loadingRx ? "…" : activeRx}</Text>
+              <Text style={styles.statValue}>
+                {loadingRx ? "…" : activeRx}
+              </Text>
               <Text style={styles.statLabel}>Prescriptions</Text>
             </View>
 
@@ -221,7 +232,9 @@ export default function DoctorDashboardScreen() {
               <View style={[styles.statIcon, { backgroundColor: "#ef444416" }]}>
                 <Ionicons name="alert-circle" size={18} color="#ef4444" />
               </View>
-              <Text style={styles.statValue}>{loadingPatients ? "…" : highRiskCount}</Text>
+              <Text style={styles.statValue}>
+                {loadingPatients ? "…" : highRiskCount}
+              </Text>
               <Text style={styles.statLabel}>High Risk</Text>
             </View>
           </View>
@@ -232,12 +245,20 @@ export default function DoctorDashboardScreen() {
           </View>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.primaryAction} onPress={goPatients} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.primaryAction}
+              onPress={goPatients}
+              activeOpacity={0.85}
+            >
               <Ionicons name="people-outline" size={18} color="#ffffff" />
               <Text style={styles.primaryActionText}>View Patients</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.secondaryAction} onPress={goRequests} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.secondaryAction}
+              onPress={goRequests}
+              activeOpacity={0.85}
+            >
               <Ionicons name="mail-outline" size={18} color="#0A84FF" />
               <Text style={styles.secondaryActionText}>Requests</Text>
             </TouchableOpacity>
@@ -258,8 +279,16 @@ export default function DoctorDashboardScreen() {
               </View>
             ) : patients.length === 0 ? (
               <View style={{ padding: 18 }}>
-                <Text style={{ fontWeight: "900", color: "#111618" }}>No active patients</Text>
-                <Text style={{ marginTop: 6, color: "#6b7280", fontWeight: "600" }}>
+                <Text style={{ fontWeight: "900", color: "#111618" }}>
+                  No active patients
+                </Text>
+                <Text
+                  style={{
+                    marginTop: 6,
+                    color: "#6b7280",
+                    fontWeight: "600",
+                  }}
+                >
                   Patients must send you a request, then accept it in Requests.
                 </Text>
               </View>
@@ -269,37 +298,48 @@ export default function DoctorDashboardScreen() {
                   key={p.id}
                   style={[
                     styles.patientRow,
-                    index !== Math.min(3, patients.length - 1) && styles.rowDivider,
+                    index !== Math.min(3, patients.length - 1) &&
+                      styles.rowDivider,
                   ]}
                   onPress={() => router.push(`/doctor/patients/${p.id}`)}
                   activeOpacity={0.85}
                 >
                   <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{(p.name?.[0] || "P").toUpperCase()}</Text>
+                    <Text style={styles.avatarText}>
+                      {p.name.charAt(0).toUpperCase()}
+                    </Text>
                   </View>
-
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.patientName}>{p.name || "Unnamed patient"}</Text>
-                    <Text style={styles.patientMeta}>{p.email || p.id}</Text>
+                    <Text style={styles.patientName}>{p.name}</Text>
+                    <Text style={styles.patientMeta}>{p.email}</Text>
                   </View>
-
                   <View style={styles.rightCol}>
-                    <View style={[styles.badge, { backgroundColor: badgeColor(p.risk) + "20" }]}>
-                      <Text style={[styles.badgeText, { color: badgeColor(p.risk) }]}>
-                        {(p.risk ? p.risk.toUpperCase() : "OK") as string}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color="#9aa6b2" />
+                    {p.risk && (
+                      <View
+                        style={[
+                          styles.badge,
+                          { backgroundColor: badgeColor(p.risk) + "20" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            { color: badgeColor(p.risk) },
+                          ]}
+                        >
+                          {p.risk.toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
                   </View>
                 </TouchableOpacity>
               ))
             )}
           </View>
-
-          <View style={{ height: 90 }} />
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -317,7 +357,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -348,7 +394,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
-  statIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
   statValue: { fontSize: 22, fontWeight: "900", color: "#111618" },
   statLabel: { fontSize: 12, fontWeight: "700", color: "#6b7280", marginTop: 2 },
 
@@ -378,10 +431,30 @@ const styles = StyleSheet.create({
   },
   secondaryActionText: { color: "#0A84FF", fontSize: 14, fontWeight: "900" },
 
-  listCard: { backgroundColor: "#ffffff", borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: "#f1f5f9" },
-  patientRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14 },
+  listCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    marginBottom: 30,
+  },
+  patientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: "#e5e7eb" },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#f2f3f5", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#f2f3f5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
   avatarText: { fontWeight: "900", color: "#617c89" },
   patientName: { fontSize: 15, fontWeight: "900", color: "#111618" },
   patientMeta: { fontSize: 12, fontWeight: "600", color: "#6b7280", marginTop: 2 },
