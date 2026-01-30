@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useFocusEffect } from '@react-navigation/native';
 
 import { auth, db } from "../../../src/firebase";
 import { signOut } from "firebase/auth";
@@ -81,8 +82,10 @@ export default function DoctorProfileScreen() {
   const availability = useMemo(() => "Auto", []);
 
   // Load doctor profile and preferences
-  useEffect(() => {
+  useFocusEffect(
+  React.useCallback(() => {
     const run = async () => {
+      setLoading(true);
       try {
         const uid = auth.currentUser?.uid;
         if (!uid) {
@@ -93,7 +96,6 @@ export default function DoctorProfileScreen() {
         setDoctorId(uid);
         setDoctorEmail(auth.currentUser?.email || "");
 
-        // Load profile data
         const snap = await getDoc(doc(db, "users", uid));
         if (snap.exists()) {
           const data = snap.data() as DoctorProfile;
@@ -101,13 +103,9 @@ export default function DoctorProfileScreen() {
           setDepartment(data?.department || "");
         }
 
-        // Load notification preferences
-        const prefs =
-          await doctorNotificationPreferencesService.getPreferences(uid);
+        const prefs = await doctorNotificationPreferencesService.getPreferences(uid);
         setUrgentPatientAlerts(prefs.urgentPatientAlerts ?? true);
-        setPrescriptionRenewalRequests(
-          prefs.prescriptionRenewalRequests ?? true
-        );
+        setPrescriptionRenewalRequests(prefs.prescriptionRenewalRequests ?? true);
         setMissedDoseAlerts(prefs.missedDoseAlerts ?? true);
         setWeeklySummary(prefs.weeklySummary ?? true);
       } catch (e) {
@@ -117,7 +115,8 @@ export default function DoctorProfileScreen() {
       }
     };
     run();
-  }, []);
+  }, [])
+);
 
   // Save preference
   const savePreference = async (
@@ -223,12 +222,7 @@ export default function DoctorProfileScreen() {
 
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() => {
-                    Alert.alert(
-                      "Coming soon",
-                      "Edit Professional Bio is not implemented yet."
-                    );
-                  }}
+                  onPress={() => router.push("/doctor/edit-profile")}
                 >
                   <Text style={styles.linkText}>Edit Professional Bio</Text>
                 </TouchableOpacity>
