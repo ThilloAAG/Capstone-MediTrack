@@ -13,10 +13,12 @@ const firebaseConfig = {
   messagingSenderId: "326160252762",
   appId: "1:326160252762:web:36a594f1620d2c1a8a7d63",
   measurementId: "G-RBWVGLJL14",
+  databaseURL: "https://meditrack-f6141-default-rtdb.firebaseio.com"
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+
 
 export const auth =
   Platform.OS === "web"

@@ -1,10 +1,11 @@
 // app/doctor/patients/[id]/new-prescription.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   TextInput,
   Alert,
   ActivityIndicator,
@@ -16,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 import { auth, db } from "../../../../src/firebase";
 import {
@@ -29,7 +31,9 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-type Frequency = "once" | "daily" | "weekly";
+type FrequencyType = "DAILY" | "WEEKLY";
+
+const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 async function ensureActiveLink(doctorId: string, patientId: string) {
   // We use deterministic linkId: `${patientId}_${doctorId}`
@@ -52,13 +56,58 @@ export default function NewPrescriptionScreen() {
   const [medName, setMedName] = useState("");
   const [dosage, setDosage] = useState("");
   const [notes, setNotes] = useState("");
+  const [patientName, setPatientName] = useState("");
+  const [loadingPatient, setLoadingPatient] = useState(true);
 
-  const [frequency, setFrequency] = useState<Frequency>("daily");
+  const [frequencyType, setFrequencyType] = useState<FrequencyType>("DAILY");
   const [timesPerDay, setTimesPerDay] = useState("1");
+  const [times, setTimes] = useState<string[]>([""]);
+  const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState<number | null>(null);
+  const [activeDateField, setActiveDateField] = useState<"start" | "end">("start");
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPatient = async () => {
+      if (!patientId) {
+        if (mounted) {
+          setPatientName("Unknown patient");
+          setLoadingPatient(false);
+        }
+        return;
+      }
+
+      try {
+        setLoadingPatient(true);
+        const snap = await getDoc(doc(db, "users", patientId));
+        if (!mounted) return;
+        if (snap.exists()) {
+          const data = snap.data() as { fullName?: string } | undefined;
+          const name = data?.fullName?.trim();
+          setPatientName(name ? name : "Unknown patient");
+        } else {
+          setPatientName("Unknown patient");
+        }
+      } catch (e) {
+        console.log("Load patient error:", e);
+        if (mounted) setPatientName("Unknown patient");
+      } finally {
+        if (mounted) setLoadingPatient(false);
+      }
+    };
+
+    loadPatient();
+
+    return () => {
+      mounted = false;
+    };
+  }, [patientId]);
 
   const validate = () => {
     if (!patientId) {
@@ -73,14 +122,77 @@ export default function NewPrescriptionScreen() {
       Alert.alert("Error", "Dosage is required.");
       return false;
     }
-    if (frequency === "daily") {
-      const n = Number(timesPerDay);
-      if (!Number.isFinite(n) || n < 1 || n > 10) {
-        Alert.alert("Error", "Times per day must be a number between 1 and 10.");
-        return false;
-      }
+    const n = Number(timesPerDay);
+    if (!Number.isFinite(n) || n < 1 || n > 4) {
+      Alert.alert("Error", "Times per day must be a number between 1 and 4.");
+      return false;
+    }
+    if (frequencyType === "WEEKLY" && daysOfWeek.length === 0) {
+      Alert.alert("Error", "Please select at least one day of the week.");
+      return false;
+    }
+    if (times.some((t) => !t.trim())) {
+      Alert.alert("Error", "Please fill all time fields.");
+      return false;
     }
     return true;
+  };
+
+  const formatDate = (date: Date) => {
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, "0");
+    const d = `${date.getDate()}`.padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const formatTime = (date: Date) => {
+    const h = `${date.getHours()}`.padStart(2, "0");
+    const m = `${date.getMinutes()}`.padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const parseDateString = (value: string) => {
+    if (!value) return new Date();
+    const [y, m, d] = value.split("-").map((v) => Number(v));
+    if (!y || !m || !d) return new Date();
+    return new Date(y, m - 1, d);
+  };
+
+  const parseTimeString = (value: string) => {
+    const base = new Date();
+    if (!value) return base;
+    const [h, m] = value.split(":").map((v) => Number(v));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return base;
+    base.setHours(h, m, 0, 0);
+    return base;
+  };
+
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === "dismissed") {
+      setShowDatePicker(false);
+      return;
+    }
+    if (selectedDate) {
+      const next = formatDate(selectedDate);
+      if (activeDateField === "start") {
+        setStartDate(next);
+      } else {
+        setEndDate(next);
+      }
+    }
+    setShowDatePicker(Platform.OS === "ios");
+  };
+
+  const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === "dismissed") {
+      setShowTimePicker(null);
+      return;
+    }
+    if (selectedDate && showTimePicker !== null) {
+      const next = formatTime(selectedDate);
+      setTimes((prev) => prev.map((t, i) => (i === showTimePicker ? next : t)));
+    }
+    setShowTimePicker(Platform.OS === "ios" ? showTimePicker : null);
   };
 
   const onSave = async () => {
@@ -108,22 +220,16 @@ export default function NewPrescriptionScreen() {
       const rxRef = collection(db, "prescriptions", patientId, "userPrescriptions");
 
       const payload = {
+        createdAt: serverTimestamp(),
         doctorId: doctorUid,
-        patientId,
-
         medicationName: medName.trim(),
         dosage: dosage.trim(),
-        notes: notes.trim() || null,
-
-        frequency,
-        timesPerDay: frequency === "daily" ? Number(timesPerDay) : null,
-        startDate: startDate.trim() || null,
-        endDate: endDate.trim() || null,
-
-        status: "active",
-
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        notes: notes.trim() || "",
+        startDate: startDate.trim() || "",
+        endDate: endDate.trim() || "",
+        frequencyType,
+        times: times.map((t) => t.trim()),
+        ...(frequencyType === "WEEKLY" ? { daysOfWeek } : {}),
       };
 
       const created = await addDoc(rxRef, payload);
@@ -157,7 +263,14 @@ export default function NewPrescriptionScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <TouchableWithoutFeedback
+      onPress={() => {
+        setShowDatePicker(false);
+        setShowTimePicker(null);
+      }}
+      accessible={false}
+    >
+      <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
       <View style={styles.wrapper}>
@@ -173,9 +286,9 @@ export default function NewPrescriptionScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Patient</Text>
-              <Text style={styles.muted}>Patient ID</Text>
-              <Text style={styles.value}>{patientId || "Missing id"}</Text>
+              <Text style={styles.cardTitle}>Patient Name</Text>
+              
+              <Text style={styles.value}>{loadingPatient ? "Loading..." : patientName}</Text>
             </View>
 
             <View style={styles.card}>
@@ -185,6 +298,7 @@ export default function NewPrescriptionScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="e.g. Metformin"
+                placeholderTextColor="#474849"
                 value={medName}
                 onChangeText={setMedName}
               />
@@ -192,7 +306,8 @@ export default function NewPrescriptionScreen() {
               <Text style={[styles.label, { marginTop: 12 }]}>Dosage</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 500 mg, 1 pill"
+                placeholder="e.g. 1or 2.... pill"
+                placeholderTextColor="#474849"
                 value={dosage}
                 onChangeText={setDosage}
               />
@@ -201,6 +316,7 @@ export default function NewPrescriptionScreen() {
               <TextInput
                 style={[styles.input, { height: 90, textAlignVertical: "top" }]}
                 placeholder="ex: take with food"
+                placeholderTextColor="#474849"
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -210,43 +326,101 @@ export default function NewPrescriptionScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Schedule</Text>
 
-              <Text style={styles.label}>Frequency</Text>
+              <Text style={styles.label}>Frequency type</Text>
               <View style={styles.chipsRow}>
-                <Chip label="Once" active={frequency === "once"} onPress={() => setFrequency("once")} />
-                <Chip label="Daily" active={frequency === "daily"} onPress={() => setFrequency("daily")} />
-                <Chip label="Weekly" active={frequency === "weekly"} onPress={() => setFrequency("weekly")} />
+                <Chip label="Daily" active={frequencyType === "DAILY"} onPress={() => setFrequencyType("DAILY")} />
+                <Chip label="Weekly" active={frequencyType === "WEEKLY"} onPress={() => setFrequencyType("WEEKLY")} />
               </View>
 
-              {frequency === "daily" && (
+              {frequencyType === "WEEKLY" && (
                 <>
-                  <Text style={[styles.label, { marginTop: 12 }]}>Times per day</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="1"
-                    value={timesPerDay}
-                    onChangeText={setTimesPerDay}
-                    keyboardType="number-pad"
-                  />
+                  <Text style={[styles.label, { marginTop: 12 }]}>Days of week</Text>
+                  <View style={[styles.chipsRow, { flexWrap: "wrap" }]}>
+                    {WEEK_DAYS.map((day) => {
+                      const active = daysOfWeek.includes(day);
+                      return (
+                        <Chip
+                          key={day}
+                          label={day}
+                          active={active}
+                          onPress={() =>
+                            setDaysOfWeek((prev) =>
+                              active ? prev.filter((d) => d !== day) : [...prev, day]
+                            )
+                          }
+                        />
+                      );
+                    })}
+                  </View>
                 </>
               )}
 
-              <Text style={[styles.label, { marginTop: 12 }]}>Start date (optional)</Text>
+              <Text style={[styles.label, { marginTop: 12 }]}>Times per day</Text>
               <TextInput
                 style={styles.input}
-                placeholder="YYYY-MM-DD"
-                value={startDate}
-                onChangeText={setStartDate}
-                autoCapitalize="none"
+                placeholder="ex: 1"
+                placeholderTextColor="#474849"
+                value={timesPerDay}
+                onChangeText={(value) => {
+                  const next = value.replace(/[^\d]/g, "");
+                  setTimesPerDay(next);
+                  const count = Math.min(4, Math.max(1, Number(next || "1")));
+                  setTimes((prev) => {
+                    const nextTimes = [...prev];
+                    while (nextTimes.length < count) nextTimes.push("");
+                    return nextTimes.slice(0, count);
+                  });
+                }}
+                keyboardType="number-pad"
               />
 
-              <Text style={[styles.label, { marginTop: 12 }]}>End date (optional)</Text>
-              <TextInput
+              {times.map((time, index) => (
+                <View key={`${index}-time`} style={{ marginTop: 10 }}>
+                  <Text style={styles.label}>{`Time ${index + 1}`}</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.input}
+                    onPress={() => {
+                      setShowDatePicker(false);
+                      setShowTimePicker(index);
+                    }}
+                  >
+                    <Text style={{ color: time ? "#111827" : "#474849" }}>
+                      {time || "Select time"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <Text style={[styles.label, { marginTop: 12 }]}>Start date (optional)</Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
                 style={styles.input}
-                placeholder="YYYY-MM-DD"
-                value={endDate}
-                onChangeText={setEndDate}
-                autoCapitalize="none"
-              />
+                onPress={() => {
+                  setShowTimePicker(null);
+                  setActiveDateField("start");
+                  setShowDatePicker(true);
+                }}
+              >
+                <Text style={{ color: startDate ? "#111827" : "#474849" }}>
+                  {startDate || "Select date"}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.label, { marginTop: 12 }]}>End date (optional)</Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.input}
+                onPress={() => {
+                  setShowTimePicker(null);
+                  setActiveDateField("end");
+                  setShowDatePicker(true);
+                }}
+              >
+                <Text style={{ color: endDate ? "#111827" : "#474849" }}>
+                  {endDate || "Select date"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -269,7 +443,28 @@ export default function NewPrescriptionScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
-    </SafeAreaView>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={parseDateString(activeDateField === "start" ? startDate : endDate)}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          themeVariant="light"
+          onChange={handleDateChange}
+        />
+      )}
+      {showTimePicker !== null && (
+        <DateTimePicker
+          value={parseTimeString(times[showTimePicker] || "")}
+          mode="time"
+          is24Hour
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          themeVariant="light"
+          onChange={handleTimeChange}
+        />
+      )}
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -302,18 +497,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 14, fontWeight: "900", color: "#111827", marginBottom: 10 },
 
-  label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8 },
+  label: { fontSize: 12, fontWeight: "800", color: "#111827", marginBottom: 8 },
   input: {
     backgroundColor: "#fff",
     borderRadius: 14,
     paddingHorizontal: 14,
+    
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     color: "#111827",
   },
 
-  muted: { fontSize: 12, fontWeight: "800", color: "#64748b" },
+  muted: { fontSize: 12, fontWeight: "800", color: "#111827" },
   value: { marginTop: 6, fontSize: 14, fontWeight: "900", color: "#111827" },
 
   chipsRow: { flexDirection: "row", gap: 10 },

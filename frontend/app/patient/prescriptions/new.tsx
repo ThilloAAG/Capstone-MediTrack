@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { isScheduleActive } from "../utils/schedulesUtils";
 
 
 export default function NewPrescriptionScreen() {
@@ -52,9 +54,10 @@ export default function NewPrescriptionScreen() {
       );
       return;
     }
+      const active = isScheduleActive(startDate, endDate);
 
     try {
-      await addDoc(collection(db, "prescriptions", user.uid, "userPrescriptions"), {
+      const presRef = await addDoc(collection(db, "prescriptions", user.uid, "userPrescriptions"), {
         userId: user.uid, 
         medicationName,
         dosage: dosageValue,
@@ -66,6 +69,22 @@ export default function NewPrescriptionScreen() {
         createdAt: new Date(),
     
       });
+
+
+      // 2️⃣ créer le schedule
+      await addDoc(collection(db, "schedules"), {
+      deviceId: "dispenser_001",
+      patientId: user.uid,
+      prescriptionId: presRef.id,
+      time,
+      compartment: 1,
+      startDate,
+      endDate: endDate || null,
+         active,
+      createdAt: new Date(),
+        });
+
+          
 
       Alert.alert("Success", "Prescription added!");
       router.push("/patient/prescriptions");
