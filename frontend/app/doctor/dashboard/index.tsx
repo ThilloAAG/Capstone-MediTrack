@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { getAuth } from "firebase/auth";
 import { auth, db } from "../../../src/firebase";
 import {
   collection,
@@ -44,6 +43,7 @@ export default function DoctorDashboardScreen() {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [activeRx, setActiveRx] = useState(0);
   const [loadingRx, setLoadingRx] = useState(true);
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   // ✅ Load ACTIVE linked patients via doctorPatientLinks
   useEffect(() => {
@@ -111,6 +111,31 @@ export default function DoctorDashboardScreen() {
         console.log("Dashboard patients fetch error:", err);
         setPatients([]);
         setLoadingPatients(false);
+      }
+    );
+
+    return () => unsub();
+  }, []);
+
+  // 🆕 Listen for PENDING doctorPatientLinks to show badge
+  useEffect(() => {
+    const doctorUid = auth.currentUser?.uid;
+    if (!doctorUid) return;
+
+    const qPending = query(
+      collection(db, "doctorPatientLinks"),
+      where("doctorId", "==", doctorUid),
+      where("status", "==", "pending")
+    );
+
+    const unsub = onSnapshot(
+      qPending,
+      (snap) => {
+        setPendingRequests(snap.size);
+      },
+      (err) => {
+        console.log("Dashboard pending requests error:", err);
+        setPendingRequests(0);
       }
     );
 
@@ -187,7 +212,22 @@ export default function DoctorDashboardScreen() {
             onPress={goRequests}
             activeOpacity={0.85}
           >
-            <Ionicons name="mail-unread-outline" size={22} color="#111618" />
+            <View style={{ position: "relative" }}>
+              <Ionicons
+                name={
+                  pendingRequests > 0 ? "mail-unread-outline" : "mail-outline"
+                }
+                size={22}
+                color="#111618"
+              />
+              {pendingRequests > 0 && (
+                <View style={styles.badgeDot}>
+                  <Text style={styles.badgeDotText}>
+                    {pendingRequests > 9 ? "9+" : pendingRequests}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Doctor Dashboard</Text>
@@ -209,7 +249,9 @@ export default function DoctorDashboardScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <View style={[styles.statIcon, { backgroundColor: "#0A84FF18" }]}>
+              <View
+                style={[styles.statIcon, { backgroundColor: "#0A84FF18" }]}
+              >
                 <Ionicons name="people" size={18} color="#0A84FF" />
               </View>
               <Text style={styles.statValue}>
@@ -219,7 +261,9 @@ export default function DoctorDashboardScreen() {
             </View>
 
             <View style={styles.statCard}>
-              <View style={[styles.statIcon, { backgroundColor: "#13a4ec20" }]}>
+              <View
+                style={[styles.statIcon, { backgroundColor: "#13a4ec20" }]}
+              >
                 <Ionicons name="medical" size={18} color="#13a4ec" />
               </View>
               <Text style={styles.statValue}>
@@ -229,7 +273,9 @@ export default function DoctorDashboardScreen() {
             </View>
 
             <View style={styles.statCard}>
-              <View style={[styles.statIcon, { backgroundColor: "#ef444416" }]}>
+              <View
+                style={[styles.statIcon, { backgroundColor: "#ef444416" }]}
+              >
                 <Ionicons name="alert-circle" size={18} color="#ef4444" />
               </View>
               <Text style={styles.statValue}>
@@ -259,7 +305,16 @@ export default function DoctorDashboardScreen() {
               onPress={goRequests}
               activeOpacity={0.85}
             >
-              <Ionicons name="mail-outline" size={18} color="#0A84FF" />
+              <View style={{ position: "relative", flexDirection: "row" }}>
+                <Ionicons name="mail-outline" size={18} color="#0A84FF" />
+                {pendingRequests > 0 && (
+                  <View style={styles.badgeDotQuick}>
+                    <Text style={styles.badgeDotText}>
+                      {pendingRequests > 9 ? "9+" : pendingRequests}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.secondaryActionText}>Requests</Text>
             </TouchableOpacity>
           </View>
@@ -331,7 +386,11 @@ export default function DoctorDashboardScreen() {
                         </Text>
                       </View>
                     )}
-                    <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color="#d1d5db"
+                    />
                   </View>
                 </TouchableOpacity>
               ))
@@ -457,8 +516,45 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontWeight: "900", color: "#617c89" },
   patientName: { fontSize: 15, fontWeight: "900", color: "#111618" },
-  patientMeta: { fontSize: 12, fontWeight: "600", color: "#6b7280", marginTop: 2 },
+  patientMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginTop: 2,
+  },
   rightCol: { alignItems: "flex-end", gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "900" },
+
+  // Red badge on header icon
+  badgeDot: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  // Smaller offset for the quick-action button icon
+  badgeDotQuick: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeDotText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900",
+  },
 });

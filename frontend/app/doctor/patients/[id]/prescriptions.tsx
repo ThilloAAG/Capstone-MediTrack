@@ -61,6 +61,7 @@ export default function DoctorPatientPrescriptionsScreen() {
 
   const [patientName, setPatientName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [linkError, setLinkError] = useState(false);
   const [items, setItems] = useState<Prescription[]>([]);
 
   useEffect(() => {
@@ -80,18 +81,17 @@ export default function DoctorPatientPrescriptionsScreen() {
       }
 
       try {
-        // ✅ Optional: load patient name for header context
-        try {
-          const userSnap = await getDoc(doc(db, "users", patientId));
-          if (userSnap.exists()) {
-            const data = userSnap.data() as any;
-            setPatientName(data?.name ?? "");
-          }
-        } catch {}
+        // 🆕 STEP 1: Verify doctor-patient link exists and is ACTIVE
+        const linkDocId = `${patientId}_${doctorUid}`;
+        const linkSnap = await getDoc(
+          doc(db, "doctorPatientLinks", linkDocId)
+        );
 
-        // ✅ Optional: verify doctor linked to patient (better error message)
-        const linkSnap = await getDoc(doc(db, "doctors", doctorUid, "patients", patientId));
-        if (!linkSnap.exists()) {
+        if (!linkSnap.exists() || linkSnap.data()?.status !== "active") {
+          console.log(
+            "❌ Doctor not linked to this patient or link not active"
+          );
+          setLinkError(true);
           setItems([]);
           setLoading(false);
           Alert.alert(
@@ -101,7 +101,24 @@ export default function DoctorPatientPrescriptionsScreen() {
           return;
         }
 
-        const ref = collection(db, "prescriptions", patientId, "userPrescriptions");
+        setLinkError(false);
+
+        // Optional: load patient name for header context
+        try {
+          const userSnap = await getDoc(doc(db, "users", patientId));
+          if (userSnap.exists()) {
+            const data = userSnap.data() as any;
+            setPatientName(data?.name ?? "");
+          }
+        } catch {}
+
+        // STEP 2: Load prescriptions from this patient
+        const ref = collection(
+          db,
+          "prescriptions",
+          patientId,
+          "userPrescriptions"
+        );
 
         // Most recent first
         const q = query(ref, orderBy("createdAt", "desc"));
@@ -117,13 +134,13 @@ export default function DoctorPatientPrescriptionsScreen() {
             setLoading(false);
           },
           (err) => {
-            console.log("Prescriptions fetch error:", err);
+            console.log("❌ Prescriptions fetch error:", err);
             setItems([]);
             setLoading(false);
           }
         );
       } catch (e) {
-        console.log("Prescriptions setup error:", e);
+        console.log("❌ Prescriptions setup error:", e);
         setItems([]);
         setLoading(false);
       }
@@ -136,12 +153,20 @@ export default function DoctorPatientPrescriptionsScreen() {
     };
   }, [patientId]);
 
-  const title = patientName ? `${patientName} · Prescriptions` : "Prescriptions";
+  const title = patientName
+    ? `${patientName} · Prescriptions`
+    : "Prescriptions";
 
   const StatusPill = ({ status }: { status?: string }) => {
     const s = (status ?? "active").toLowerCase();
     const color =
-      s === "active" ? "#22c55e" : s === "paused" ? "#f59e0b" : s === "completed" ? "#64748b" : "#13a4ec";
+      s === "active"
+        ? "#22c55e"
+        : s === "paused"
+        ? "#f59e0b"
+        : s === "completed"
+        ? "#64748b"
+        : "#13a4ec";
 
     return (
       <View style={[styles.pill, { backgroundColor: color + "22" }]}>
@@ -159,6 +184,52 @@ export default function DoctorPatientPrescriptionsScreen() {
     return `Daily · ${t}×/day`;
   };
 
+  // If link error, show error message
+  if (linkError || (loading && linkError)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" />
+
+        <View style={styles.wrapper}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.iconBtn}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chevron-back" size={22} color="#111827" />
+            </TouchableOpacity>
+
+            <Text numberOfLines={1} style={styles.headerTitle}>
+              {title}
+            </Text>
+
+            <View style={{ width: 40 }} />
+          </View>
+
+          <View style={styles.errorContainer}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={52}
+              color="#ef4444"
+            />
+            <Text style={styles.errorTitle}>Not Linked</Text>
+            <Text style={styles.errorText}>
+              This patient is not linked to your doctor account.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.backBtnText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
@@ -166,7 +237,11 @@ export default function DoctorPatientPrescriptionsScreen() {
       <View style={styles.wrapper}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.85}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.iconBtn}
+            activeOpacity={0.85}
+          >
             <Ionicons name="chevron-back" size={22} color="#111827" />
           </TouchableOpacity>
 
@@ -191,7 +266,9 @@ export default function DoctorPatientPrescriptionsScreen() {
           <View style={styles.summaryCard}>
             <View>
               <Text style={styles.summaryLabel}>Total prescriptions</Text>
-              <Text style={styles.summaryValue}>{loading ? "…" : items.length}</Text>
+              <Text style={styles.summaryValue}>
+                {loading ? "…" : items.length}
+              </Text>
             </View>
             <View style={styles.summaryIcon}>
               <Ionicons name="medical" size={22} color="#13a4ec" />
@@ -206,7 +283,11 @@ export default function DoctorPatientPrescriptionsScreen() {
               </View>
             ) : items.length === 0 ? (
               <View style={styles.empty}>
-                <Ionicons name="document-text-outline" size={52} color="#94a3b8" />
+                <Ionicons
+                  name="document-text-outline"
+                  size={52}
+                  color="#94a3b8"
+                />
                 <Text style={styles.emptyTitle}>No prescriptions yet</Text>
                 <Text style={styles.emptyText}>
                   Tap the + button to create the first prescription.
@@ -215,7 +296,9 @@ export default function DoctorPatientPrescriptionsScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     if (!patientId) return;
-                    router.push(`/doctor/patients/${patientId}/new-prescription`);
+                    router.push(
+                      `/doctor/patients/${patientId}/new-prescription`
+                    );
                   }}
                   style={styles.primaryBtn}
                   activeOpacity={0.85}
@@ -228,15 +311,22 @@ export default function DoctorPatientPrescriptionsScreen() {
               items.map((p, idx) => (
                 <TouchableOpacity
                   key={p.id}
-                  style={[styles.row, idx !== items.length - 1 && styles.rowDivider]}
+                  style={[
+                    styles.row,
+                    idx !== items.length - 1 && styles.rowDivider,
+                  ]}
                   activeOpacity={0.85}
                   onPress={() => {
-                    // Optional future: open prescription detail page
-                    Alert.alert("Prescription", "Detail page coming soon.");
+                    if (!patientId || !p.id) return;
+                    router.push(
+                      `/doctor/patients/${patientId}/prescriptions/${p.id}`
+                    );
                   }}
                 >
                   <View style={styles.leftCol}>
-                    <Text style={styles.rxName}>{p.medicationName || "Medication"}</Text>
+                    <Text style={styles.rxName}>
+                      {p.medicationName || "Medication"}
+                    </Text>
                     <Text style={styles.rxMeta}>
                       {p.dosage ? `${p.dosage} · ` : ""}
                       {scheduleText(p)}
@@ -248,13 +338,19 @@ export default function DoctorPatientPrescriptionsScreen() {
                         {p.endDate ? `End: ${p.endDate}` : "End: —"}
                       </Text>
                     ) : (
-                      <Text style={styles.rxDates}>Created: {formatTs(p.createdAt) || "—"}</Text>
+                      <Text style={styles.rxDates}>
+                        Created: {formatTs(p.createdAt) || "—"}
+                      </Text>
                     )}
                   </View>
 
                   <View style={styles.rightCol}>
                     <StatusPill status={p.status} />
-                    <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#94a3b8"
+                    />
                   </View>
                 </TouchableOpacity>
               ))
@@ -282,8 +378,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "900", color: "#111827" },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#111827",
+  },
 
   main: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
 
@@ -299,8 +407,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   summaryLabel: { fontSize: 12, fontWeight: "800", color: "#64748b" },
-  summaryValue: { marginTop: 4, fontSize: 24, fontWeight: "900", color: "#111827" },
-  summaryIcon: { width: 44, height: 44, borderRadius: 18, backgroundColor: "#e3f5ff", alignItems: "center", justifyContent: "center" },
+  summaryValue: {
+    marginTop: 4,
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  summaryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 18,
+    backgroundColor: "#e3f5ff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   listCard: {
     backgroundColor: "#ffffff",
@@ -310,23 +430,100 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
 
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 14, gap: 12 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
 
   leftCol: { flex: 1 },
   rxName: { fontSize: 15, fontWeight: "900", color: "#111827" },
-  rxMeta: { marginTop: 3, fontSize: 12, fontWeight: "800", color: "#64748b" },
-  rxDates: { marginTop: 6, fontSize: 11, fontWeight: "700", color: "#94a3b8" },
+  rxMeta: {
+    marginTop: 3,
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  rxDates: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
 
   rightCol: { alignItems: "flex-end", gap: 8 },
 
-  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
   pillText: { fontSize: 11, fontWeight: "900" },
 
-  empty: { paddingVertical: 26, alignItems: "center", paddingHorizontal: 14 },
-  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900", color: "#111827" },
-  emptyText: { marginTop: 6, fontSize: 12, fontWeight: "700", color: "#64748b", textAlign: "center", lineHeight: 18 },
+  empty: {
+    paddingVertical: 26,
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+  emptyTitle: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  emptyText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748b",
+    textAlign: "center",
+    lineHeight: 18,
+  },
 
-  primaryBtn: { marginTop: 14, backgroundColor: "#13a4ec", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 8 },
+  primaryBtn: {
+    marginTop: 14,
+    backgroundColor: "#13a4ec",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   primaryBtnText: { color: "#fff", fontWeight: "900" },
+
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  errorTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#ef4444",
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748b",
+    textAlign: "center",
+  },
+  backBtn: {
+    marginTop: 20,
+    backgroundColor: "#13a4ec",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+  },
+  backBtnText: {
+    color: "#fff",
+    fontWeight: "900",
+  },
 });
