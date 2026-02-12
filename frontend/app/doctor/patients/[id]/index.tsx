@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { auth, db } from "../../../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { unlinkPatient } from "../../../../services/unlinkPatientService";
 
 type Patient = {
   id: string;
@@ -32,6 +33,7 @@ export default function DoctorPatientDetail() {
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unlinking, setUnlinking] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -64,6 +66,46 @@ export default function DoctorPatientDetail() {
 
     run();
   }, [patientId]);
+
+  const handleUnlinkPatient = () => {
+    if (!patientId || !patient) return;
+
+    Alert.alert(
+      "Unlink patient",
+      `Are you sure you want to unlink ${patient.name || "this patient"}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unlink",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const doctorUid = auth.currentUser?.uid;
+              if (!doctorUid) return;
+
+              setUnlinking(true);
+              await unlinkPatient(patientId, doctorUid);
+
+              Alert.alert("Unlinked", "The patient has been unlinked.", [
+                {
+                  text: "OK",
+                  onPress: () => router.replace("/doctor/patients"),
+                },
+              ]);
+            } catch (e: any) {
+              console.log("❌ Unlink error:", e);
+              Alert.alert(
+                "Error",
+                e?.message || "Failed to unlink patient. Please try again."
+              );
+            } finally {
+              setUnlinking(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -131,14 +173,16 @@ export default function DoctorPatientDetail() {
                       return;
                     }
 
-  console.log("➡️ NAV to new prescription for:", patientId);
+                    console.log(
+                      "➡️ NAV to new prescription for:",
+                      patientId
+                    );
 
-  router.push({
-    pathname: "/doctor/patients/[id]/new-prescription",
-    params: { id: patientId },
-  });
-}}
-
+                    router.push({
+                      pathname: "/doctor/patients/[id]/new-prescription",
+                      params: { id: patientId },
+                    });
+                  }}
                 >
                   <Ionicons
                     name="add-circle-outline"
@@ -160,7 +204,6 @@ export default function DoctorPatientDetail() {
                     if (!patientId) return;
                     router.push(`/doctor/patients/${patientId}/prescriptions`);
                   }}
-
                 >
                   <Ionicons
                     name="medical-outline"
@@ -176,17 +219,41 @@ export default function DoctorPatientDetail() {
                 </TouchableOpacity>
               </View>
 
-              {/* META */}
+              {/* META + UNLINK */}
               <View style={styles.metaCard}>
                 <Text style={styles.metaTitle}>Account</Text>
-                <Text style={styles.metaLine}>Role: {patient.role || "-"}</Text>
+                <Text style={styles.metaLine}>
+                  Role: {patient.role || "-"}
+                </Text>
                 <Text style={styles.metaLine}>UID: {patient.id}</Text>
+
+                <TouchableOpacity
+                  style={styles.unlinkBtn}
+                  onPress={handleUnlinkPatient}
+                  activeOpacity={0.85}
+                  disabled={unlinking}
+                >
+                  {unlinking ? (
+                    <ActivityIndicator color="#ef4444" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="link-outline"
+                        size={18}
+                        color="#ef4444"
+                      />
+                      <Text style={styles.unlinkText}>Unlink patient</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.unlinkHint}>
+                  Unlinking removes this patient from your list. You can only
+                  access their data again after a new link request.
+                </Text>
               </View>
             </>
           )}
         </ScrollView>
-
-       
       </View>
     </SafeAreaView>
   );
@@ -269,6 +336,28 @@ const styles = StyleSheet.create({
   },
   metaTitle: { fontSize: 14, fontWeight: "900" },
   metaLine: { fontSize: 12, color: "#64748b", marginTop: 4 },
+
+  unlinkBtn: {
+    marginTop: 16,
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  unlinkText: {
+    color: "#ef4444",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  unlinkHint: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#9ca3af",
+    fontWeight: "600",
+  },
 
   empty: { paddingTop: 60, alignItems: "center" },
   emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900" },

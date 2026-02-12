@@ -15,16 +15,13 @@ import { collection, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "../../../src/firebase";
 
-
 export default function NotificationsScreen() {
-  const [upcomingReminders, setUpcomingReminders] = useState([]);
+  const [upcomingReminders, setUpcomingReminders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
 
   useEffect(() => {
     initializeScreen();
   }, []);
-
 
   const initializeScreen = async () => {
     try {
@@ -32,37 +29,33 @@ export default function NotificationsScreen() {
       const auth = getAuth();
       const user = auth.currentUser;
 
-
       if (!user) {
         console.error("❌ User not authenticated");
         setLoading(false);
         return;
       }
 
-
       // Load prescriptions
       const prescriptionsSnapshot = await getDocs(
         collection(db, "prescriptions", user.uid, "userPrescriptions")
       );
-      const prescriptions = prescriptionsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const prescriptions = prescriptionsSnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       }));
       console.log("✅ Prescriptions loaded:", prescriptions.length);
-
 
       // Load preferences
       const preferencesSnapshot = await getDocs(
         collection(db, "notificationPreferences", user.uid, "preferences")
       );
-      const preferences = preferencesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const preferences = preferencesSnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       }));
       console.log("✅ Preferences loaded:", preferences.length);
 
-
-      // Generate upcoming reminders from preferences
+      // Generate upcoming reminders
       generateUpcomingReminders(preferences, prescriptions);
       setLoading(false);
     } catch (error) {
@@ -71,55 +64,33 @@ export default function NotificationsScreen() {
     }
   };
 
-
-  const generateUpcomingReminders = (prefs, presc) => {
-    const remindersArray = [];
-
+  const generateUpcomingReminders = (prefs: any[], presc: any[]) => {
+    const remindersArray: any[] = [];
 
     prefs.forEach((pref) => {
-      // Skip inactive preferences
       if (!pref.isActive) return;
 
-
-      // Find the matching prescription
       const prescription = presc.find((p) => p.id === pref.prescriptionId);
-      if (!prescription) {
-        console.warn(`⚠️ Prescription not found for preference: ${pref.prescriptionId}`);
-        return;
-      }
+      if (!prescription) return;
 
-
-      // Get medication time from prescription
       const medTime = prescription.time || "09:00";
-
-
-      // Parse time (HH:MM format)
       const [hours, minutes] = medTime.split(":").map(Number);
       const medicationTime = new Date();
       medicationTime.setHours(hours, minutes, 0);
 
-
-      // Get reminder minutes from preferences
       const reminderMinutes = pref.reminderMinutes || [0];
 
-
-      // Create a reminder for each reminder time
-      reminderMinutes.forEach((mins, idx) => {
+      reminderMinutes.forEach((mins: number, idx: number) => {
         const reminderTime = new Date(medicationTime);
         reminderTime.setMinutes(reminderTime.getMinutes() - mins);
 
-
-        // Calculate time until reminder
         const now = new Date();
         const diffMs = reminderTime.getTime() - now.getTime();
         const diffMins = Math.round(diffMs / 60000);
 
-
-        // Only include upcoming reminders (next 24 hours)
         if (diffMins > -60) {
           let status = "future";
           let timeDisplay = "";
-
 
           if (diffMins < 0) {
             status = "overdue";
@@ -136,7 +107,6 @@ export default function NotificationsScreen() {
             timeDisplay = `in ${hoursUntil}h ${minsRemaining}m`;
             status = "upcoming";
           }
-
 
           remindersArray.push({
             id: `${pref.id}-${idx}`,
@@ -158,14 +128,11 @@ export default function NotificationsScreen() {
       });
     });
 
-
-    // Sort by time (nearest first)
     remindersArray.sort((a, b) => a.diffMins - b.diffMins);
     setUpcomingReminders(remindersArray);
   };
 
-
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case "now":
         return "alert-circle";
@@ -178,8 +145,7 @@ export default function NotificationsScreen() {
     }
   };
 
-
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "now":
         return "#EF4444";
@@ -192,13 +158,11 @@ export default function NotificationsScreen() {
     }
   };
 
-
   const handleOpenPreferences = () => {
     router.push("/patient/notifications/preferences");
   };
 
-
-  const handleNavigateToTab = (tab) => {
+  const handleNavigateToTab = (tab: string) => {
     switch (tab) {
       case "dashboard":
         router.push("/patient/dashboard");
@@ -219,7 +183,6 @@ export default function NotificationsScreen() {
     }
   };
 
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -230,7 +193,6 @@ export default function NotificationsScreen() {
       </SafeAreaView>
     );
   }
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -255,13 +217,10 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
         </View>
 
-
         {/* Main Content */}
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* Upcoming Reminders Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Reminders</Text>
-
 
             {upcomingReminders.length === 0 ? (
               <View style={styles.emptyState}>
@@ -270,10 +229,7 @@ export default function NotificationsScreen() {
                 <Text style={styles.emptySubtitle}>
                   No reminders scheduled. Add a notification preference to get started.
                 </Text>
-                <TouchableOpacity
-                  onPress={handleOpenPreferences}
-                  style={styles.emptyButton}
-                >
+                <TouchableOpacity onPress={handleOpenPreferences} style={styles.emptyButton}>
                   <Text style={styles.emptyButtonText}>Set Preferences</Text>
                 </TouchableOpacity>
               </View>
@@ -288,32 +244,16 @@ export default function NotificationsScreen() {
                       reminder.status === "overdue" && styles.reminderCardOverdue,
                     ]}
                   >
-                    {/* Header with Toggle */}
                     <View style={styles.cardHeader}>
                       <View style={styles.medicationInfo}>
-                        <Text style={styles.medicationName}>
-                          {reminder.medicationName}
-                        </Text>
-                        <Text style={styles.reminderCount}>
-                          Reminder {reminder.timeDisplay}
-                        </Text>
+                        <Text style={styles.medicationName}>{reminder.medicationName}</Text>
+                        <Text style={styles.reminderCount}>Reminder {reminder.timeDisplay}</Text>
                       </View>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: getStatusColor(reminder.status) },
-                        ]}
-                      >
-                        <Ionicons
-                          name={getStatusIcon(reminder.status)}
-                          size={16}
-                          color="#fff"
-                        />
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(reminder.status) }]}>
+                        <Ionicons name={getStatusIcon(reminder.status) as any} size={16} color="#fff" />
                       </View>
                     </View>
 
-
-                    {/* Reminder Tags */}
                     <View style={styles.tagsContainer}>
                       <View style={styles.reminderTag}>
                         <Ionicons name="time" size={12} color="#13a4ec" />
@@ -325,16 +265,9 @@ export default function NotificationsScreen() {
                       </View>
                     </View>
 
-
-                    {/* Time Display */}
                     <View style={styles.timeRow}>
                       <Text style={styles.timeLabel}>Medication time:</Text>
-                      <Text
-                        style={[
-                          styles.timeValue,
-                          { color: getStatusColor(reminder.status) },
-                        ]}
-                      >
+                      <Text style={[styles.timeValue, { color: getStatusColor(reminder.status) }]}>
                         {reminder.reminderTime}
                       </Text>
                     </View>
@@ -344,8 +277,6 @@ export default function NotificationsScreen() {
             )}
           </View>
 
-
-          {/* Info Section */}
           {upcomingReminders.length > 0 && (
             <View style={styles.infoSection}>
               <View style={styles.infoBox}>
@@ -358,56 +289,41 @@ export default function NotificationsScreen() {
           )}
         </ScrollView>
 
-
         {/* Bottom Navigation */}
         <View style={styles.bottomNavigation}>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab("dashboard")}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("dashboard")} activeOpacity={0.8}>
             <Ionicons name="home-outline" size={24} color="#9ca3af" />
-            <Text style={styles.navText}>Dashboard</Text>
+            <Text style={styles.navText} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.85}>
+              Dashboard
+            </Text>
           </TouchableOpacity>
 
-
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab("prescriptions")}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("prescriptions")} activeOpacity={0.8}>
             <Ionicons name="medical-outline" size={24} color="#9ca3af" />
-            <Text style={styles.navText}>Prescriptions</Text>
+            <Text style={styles.navText} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.85}>
+              Prescriptions
+            </Text>
           </TouchableOpacity>
 
-
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab("machines")}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("machines")} activeOpacity={0.8}>
             <Ionicons name="grid-outline" size={24} color="#9ca3af" />
-            <Text style={styles.navText}>Machines</Text>
+            <Text style={styles.navText} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.85}>
+              Machines
+            </Text>
           </TouchableOpacity>
 
-
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab("notifications")}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("notifications")} activeOpacity={0.8}>
             <Ionicons name="notifications" size={24} color="#13a4ec" />
-            <Text style={[styles.navText, styles.navTextActive]}>Notifications</Text>
+            <Text style={[styles.navText, styles.navTextActive]} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.85}>
+              Notifications
+            </Text>
           </TouchableOpacity>
 
-
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleNavigateToTab("profile")}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("profile")} activeOpacity={0.8}>
             <Ionicons name="person-outline" size={24} color="#9ca3af" />
-            <Text style={styles.navText}>Profile</Text>
+            <Text style={styles.navText} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.85}>
+              Profile
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -415,25 +331,12 @@ export default function NotificationsScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f6f7f8",
-  },
-  wrapper: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#6B7280",
-  },
+  container: { flex: 1, backgroundColor: "#f6f7f8" },
+  wrapper: { flex: 1 },
+  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 16, fontSize: 16, color: "#6B7280" },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -444,9 +347,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0f3f4",
     justifyContent: "space-between",
   },
-  backButton: {
-    padding: 4,
-  },
+  backButton: { padding: 4 },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -455,151 +356,42 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingRight: 32,
   },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  main: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 24,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 16,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  emptyButton: {
-    marginTop: 24,
-    backgroundColor: "#13a4ec",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  emptyButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  remindersList: {
-    gap: 12,
-  },
-  reminderCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    gap: 8,
-  },
-  reminderCardNow: {
-    borderColor: "#EF4444",
-    backgroundColor: "#FEF2F2",
-  },
-  reminderCardOverdue: {
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  medicationInfo: {
-    flex: 1,
-  },
-  medicationName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  reminderCount: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  statusBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  reminderTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E0F7FF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  tagText: {
-    fontSize: 11,
-    color: "#13a4ec",
-    fontWeight: "500",
-  },
-  timeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    paddingTop: 8,
-  },
-  timeLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  timeValue: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  infoSection: {
-    paddingHorizontal: 0,
-    paddingVertical: 16,
-  },
-  infoBox: {
-    flexDirection: "row",
-    backgroundColor: "#E0F7FF",
-    borderRadius: 10,
-    padding: 12,
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#13a4ec",
-    fontWeight: "500",
-  },
+  settingsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+
+  main: { flex: 1, paddingHorizontal: 16, paddingTop: 24 },
+
+  section: { marginBottom: 32 },
+  sectionTitle: { fontSize: 24, fontWeight: "700", color: "#111827", marginBottom: 16 },
+
+  emptyState: { alignItems: "center", paddingVertical: 48 },
+  emptyTitle: { fontSize: 18, fontWeight: "600", color: "#1F2937", marginTop: 16 },
+  emptySubtitle: { fontSize: 14, color: "#6B7280", marginTop: 8, textAlign: "center" },
+  emptyButton: { marginTop: 24, backgroundColor: "#13a4ec", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  emptyButtonText: { color: "#fff", fontWeight: "600" },
+
+  remindersList: { gap: 12 },
+  reminderCard: { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
+  reminderCardNow: { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
+  reminderCardOverdue: { borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  medicationInfo: { flex: 1 },
+  medicationName: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
+  reminderCount: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  statusBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+
+  tagsContainer: { flexDirection: "row", gap: 8 },
+  reminderTag: { flexDirection: "row", alignItems: "center", backgroundColor: "#E0F7FF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, gap: 4 },
+  tagText: { fontSize: 11, color: "#13a4ec", fontWeight: "500" },
+
+  timeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 8 },
+  timeLabel: { fontSize: 12, color: "#6B7280", fontWeight: "500" },
+  timeValue: { fontSize: 12, fontWeight: "600" },
+
+  infoSection: { paddingHorizontal: 0, paddingVertical: 16 },
+  infoBox: { flexDirection: "row", backgroundColor: "#E0F7FF", borderRadius: 10, padding: 12, gap: 10, alignItems: "flex-start" },
+  infoText: { flex: 1, fontSize: 14, color: "#13a4ec", fontWeight: "500" },
+
   bottomNavigation: {
     flexDirection: "row",
     backgroundColor: "#f6f7f8cc",
@@ -607,22 +399,16 @@ const styles = StyleSheet.create({
     borderTopColor: "#e5e7eb",
     paddingTop: 8,
     paddingBottom: 16,
-    paddingHorizontal: 8,
+    paddingHorizontal: 8, // was 8 already; keep it tight
   },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 8,
-  },
+  navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8 },
   navText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
     color: "#9ca3af",
+    letterSpacing: -0.3,
+    textAlign: "center",
+    includeFontPadding: false as any,
   },
-  navTextActive: {
-    color: "#13a4ec",
-    fontWeight: "700",
-  },
+  navTextActive: { fontSize: 11, color: "#13a4ec", fontWeight: "700", letterSpacing: -0.3 },
 });
