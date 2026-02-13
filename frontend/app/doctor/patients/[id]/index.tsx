@@ -180,7 +180,7 @@ export default function DoctorPatientDetail() {
               <View style={styles.metaCard}>
                 <Text style={styles.metaTitle}>Account</Text>
                 <Text style={styles.metaLine}>Role: {patient.role || "-"}</Text>
-                <Text style={styles.metaLine}>UID: {patient.id}</Text>
+                
               </View>
             </>
           )}
