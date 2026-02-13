@@ -1,4 +1,3 @@
-// app/doctor/patients/[id]/new-prescription.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -20,23 +19,14 @@ import { router, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 import { auth, db } from "../../../../src/firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-} from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+
+import { computeRxStatus, parseDateStart, parseDateEnd, isValidYYYYMMDD } from "../../../../services/prescriptionStatus";
 
 type FrequencyType = "DAILY" | "WEEKLY";
-
 const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 async function ensureActiveLink(doctorId: string, patientId: string) {
-  // We use deterministic linkId: `${patientId}_${doctorId}`
   const linkId = `${patientId}_${doctorId}`;
   const linkSnap = await getDoc(doc(db, "doctorPatientLinks", linkId));
   if (!linkSnap.exists()) return false;
@@ -52,7 +42,6 @@ export default function NewPrescriptionScreen() {
     return Array.isArray(params.id) ? params.id[0] : params.id;
   }, [params.id]);
 
-  // ----- Form state -----
   const [medName, setMedName] = useState("");
   const [dosage, setDosage] = useState("");
   const [notes, setNotes] = useState("");
@@ -63,8 +52,10 @@ export default function NewPrescriptionScreen() {
   const [timesPerDay, setTimesPerDay] = useState("1");
   const [times, setTimes] = useState<string[]>([""]);
   const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+
+  const [startDate, setStartDate] = useState(""); // YYYY-MM-DD
+  const [endDate, setEndDate] = useState(""); // YYYY-MM-DD
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState<number | null>(null);
   const [activeDateField, setActiveDateField] = useState<"start" | "end">("start");
@@ -87,9 +78,10 @@ export default function NewPrescriptionScreen() {
         setLoadingPatient(true);
         const snap = await getDoc(doc(db, "users", patientId));
         if (!mounted) return;
+
         if (snap.exists()) {
-          const data = snap.data() as { fullName?: string } | undefined;
-          const name = data?.fullName?.trim();
+          const data = snap.data() as any;
+          const name = (data?.name || data?.fullName || "").trim();
           setPatientName(name ? name : "Unknown patient");
         } else {
           setPatientName("Unknown patient");
@@ -103,40 +95,10 @@ export default function NewPrescriptionScreen() {
     };
 
     loadPatient();
-
     return () => {
       mounted = false;
     };
   }, [patientId]);
-
-  const validate = () => {
-    if (!patientId) {
-      Alert.alert("Error", "Missing patient id in route.");
-      return false;
-    }
-    if (!medName.trim()) {
-      Alert.alert("Error", "Medication name is required.");
-      return false;
-    }
-    if (!dosage.trim()) {
-      Alert.alert("Error", "Dosage is required.");
-      return false;
-    }
-    const n = Number(timesPerDay);
-    if (!Number.isFinite(n) || n < 1 || n > 4) {
-      Alert.alert("Error", "Times per day must be a number between 1 and 4.");
-      return false;
-    }
-    if (frequencyType === "WEEKLY" && daysOfWeek.length === 0) {
-      Alert.alert("Error", "Please select at least one day of the week.");
-      return false;
-    }
-    if (times.some((t) => !t.trim())) {
-      Alert.alert("Error", "Please fill all time fields.");
-      return false;
-    }
-    return true;
-  };
 
   const formatDate = (date: Date) => {
     const y = date.getFullYear();
@@ -152,10 +114,8 @@ export default function NewPrescriptionScreen() {
   };
 
   const parseDateString = (value: string) => {
-    if (!value) return new Date();
-    const [y, m, d] = value.split("-").map((v) => Number(v));
-    if (!y || !m || !d) return new Date();
-    return new Date(y, m - 1, d);
+    const d = parseDateStart(value);
+    return d ?? new Date();
   };
 
   const parseTimeString = (value: string) => {
@@ -174,11 +134,8 @@ export default function NewPrescriptionScreen() {
     }
     if (selectedDate) {
       const next = formatDate(selectedDate);
-      if (activeDateField === "start") {
-        setStartDate(next);
-      } else {
-        setEndDate(next);
-      }
+      if (activeDateField === "start") setStartDate(next);
+      else setEndDate(next);
     }
     setShowDatePicker(Platform.OS === "ios");
   };
@@ -195,6 +152,66 @@ export default function NewPrescriptionScreen() {
     setShowTimePicker(Platform.OS === "ios" ? showTimePicker : null);
   };
 
+  const validate = () => {
+    if (!patientId) {
+      Alert.alert("Error", "Missing patient id in route.");
+      return false;
+    }
+    if (!medName.trim()) {
+      Alert.alert("Error", "Medication name is required.");
+      return false;
+    }
+    if (!dosage.trim()) {
+      Alert.alert("Error", "Dosage is required.");
+      return false;
+    }
+
+    const n = Number(timesPerDay);
+    if (!Number.isFinite(n) || n < 1 || n > 4) {
+      Alert.alert("Error", "Times per day must be a number between 1 and 4.");
+      return false;
+    }
+
+    if (frequencyType === "WEEKLY" && daysOfWeek.length === 0) {
+      Alert.alert("Error", "Please select at least one day of the week.");
+      return false;
+    }
+
+    if (times.some((t) => !t.trim())) {
+      Alert.alert("Error", "Please fill all time fields.");
+      return false;
+    }
+
+    if (!startDate.trim() || !isValidYYYYMMDD(startDate.trim())) {
+      Alert.alert("Error", "Start date is required (YYYY-MM-DD).");
+      return false;
+    }
+    if (!endDate.trim() || !isValidYYYYMMDD(endDate.trim())) {
+      Alert.alert("Error", "End date is required (YYYY-MM-DD).");
+      return false;
+    }
+
+    const sd = parseDateStart(startDate.trim());
+    const ed = parseDateEnd(endDate.trim());
+    if (!sd || !ed) {
+      Alert.alert("Error", "Invalid date format. Use YYYY-MM-DD.");
+      return false;
+    }
+    if (ed.getTime() < sd.getTime()) {
+      Alert.alert("Error", "End date must be after start date.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const computedStatusPreview = () => {
+    const sd = parseDateStart(startDate.trim());
+    const ed = parseDateEnd(endDate.trim());
+    if (!sd || !ed) return "—";
+    return computeRxStatus(sd, ed, new Date()).toUpperCase();
+  };
+
   const onSave = async () => {
     if (!validate()) return;
 
@@ -207,29 +224,41 @@ export default function NewPrescriptionScreen() {
     try {
       setLoading(true);
 
-      // ✅ Security gate: doctor must be ACTIVE for this patient
       const ok = await ensureActiveLink(doctorUid, patientId);
       if (!ok) {
-        Alert.alert(
-          "Not authorized",
-          "You are not linked to this patient (active link required)."
-        );
+        Alert.alert("Not authorized", "You are not linked to this patient (active link required).");
         return;
       }
 
+      const sd = parseDateStart(startDate.trim())!;
+      const ed = parseDateEnd(endDate.trim())!;
+      const status = computeRxStatus(sd, ed, new Date());
+
       const rxRef = collection(db, "prescriptions", patientId, "userPrescriptions");
 
-      const payload = {
+      const payload: any = {
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+
         doctorId: doctorUid,
         medicationName: medName.trim(),
         dosage: dosage.trim(),
         notes: notes.trim() || "",
-        startDate: startDate.trim() || "",
-        endDate: endDate.trim() || "",
+
         frequencyType,
+        timesPerDay: Number(timesPerDay),
         times: times.map((t) => t.trim()),
         ...(frequencyType === "WEEKLY" ? { daysOfWeek } : {}),
+
+        startDate: startDate.trim(),
+        endDate: endDate.trim(),
+
+        startDateTs: Timestamp.fromDate(sd),
+        endDateTs: Timestamp.fromDate(ed),
+
+        status,                 // auto status value (based on dates)
+        statusMode: "auto",     // IMPORTANT: default to auto
+        statusUpdatedAt: serverTimestamp(),
       };
 
       const created = await addDoc(rxRef, payload);
@@ -244,20 +273,8 @@ export default function NewPrescriptionScreen() {
     }
   };
 
-  const Chip = ({
-    label,
-    active,
-    onPress,
-  }: {
-    label: string;
-    active: boolean;
-    onPress: () => void;
-  }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[styles.chip, active && styles.chipActive]}
-    >
+  const Chip = ({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) => (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={[styles.chip, active && styles.chipActive]}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -271,198 +288,195 @@ export default function NewPrescriptionScreen() {
       accessible={false}
     >
       <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+        <StatusBar style="dark" />
 
-      <View style={styles.wrapper}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
-            <Ionicons name="chevron-back" size={24} color="#111827" />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>New Prescription</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Patient Name</Text>
-              
-              <Text style={styles.value}>{loadingPatient ? "Loading..." : patientName}</Text>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Medication</Text>
-
-              <Text style={styles.label}>Medication name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Metformin"
-                placeholderTextColor="#474849"
-                value={medName}
-                onChangeText={setMedName}
-              />
-
-              <Text style={[styles.label, { marginTop: 12 }]}>Dosage</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 1or 2.... pill"
-                placeholderTextColor="#474849"
-                value={dosage}
-                onChangeText={setDosage}
-              />
-
-              <Text style={[styles.label, { marginTop: 12 }]}>Notes (optional)</Text>
-              <TextInput
-                style={[styles.input, { height: 90, textAlignVertical: "top" }]}
-                placeholder="ex: take with food"
-                placeholderTextColor="#474849"
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-              />
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Schedule</Text>
-
-              <Text style={styles.label}>Frequency type</Text>
-              <View style={styles.chipsRow}>
-                <Chip label="Daily" active={frequencyType === "DAILY"} onPress={() => setFrequencyType("DAILY")} />
-                <Chip label="Weekly" active={frequencyType === "WEEKLY"} onPress={() => setFrequencyType("WEEKLY")} />
-              </View>
-
-              {frequencyType === "WEEKLY" && (
-                <>
-                  <Text style={[styles.label, { marginTop: 12 }]}>Days of week</Text>
-                  <View style={[styles.chipsRow, { flexWrap: "wrap" }]}>
-                    {WEEK_DAYS.map((day) => {
-                      const active = daysOfWeek.includes(day);
-                      return (
-                        <Chip
-                          key={day}
-                          label={day}
-                          active={active}
-                          onPress={() =>
-                            setDaysOfWeek((prev) =>
-                              active ? prev.filter((d) => d !== day) : [...prev, day]
-                            )
-                          }
-                        />
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              <Text style={[styles.label, { marginTop: 12 }]}>Times per day</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="ex: 1"
-                placeholderTextColor="#474849"
-                value={timesPerDay}
-                onChangeText={(value) => {
-                  const next = value.replace(/[^\d]/g, "");
-                  setTimesPerDay(next);
-                  const count = Math.min(4, Math.max(1, Number(next || "1")));
-                  setTimes((prev) => {
-                    const nextTimes = [...prev];
-                    while (nextTimes.length < count) nextTimes.push("");
-                    return nextTimes.slice(0, count);
-                  });
-                }}
-                keyboardType="number-pad"
-              />
-
-              {times.map((time, index) => (
-                <View key={`${index}-time`} style={{ marginTop: 10 }}>
-                  <Text style={styles.label}>{`Time ${index + 1}`}</Text>
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={styles.input}
-                    onPress={() => {
-                      setShowDatePicker(false);
-                      setShowTimePicker(index);
-                    }}
-                  >
-                    <Text style={{ color: time ? "#111827" : "#474849" }}>
-                      {time || "Select time"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              <Text style={[styles.label, { marginTop: 12 }]}>Start date (optional)</Text>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.input}
-                onPress={() => {
-                  setShowTimePicker(null);
-                  setActiveDateField("start");
-                  setShowDatePicker(true);
-                }}
-              >
-                <Text style={{ color: startDate ? "#111827" : "#474849" }}>
-                  {startDate || "Select date"}
-                </Text>
-              </TouchableOpacity>
-
-              <Text style={[styles.label, { marginTop: 12 }]}>End date (optional)</Text>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.input}
-                onPress={() => {
-                  setShowTimePicker(null);
-                  setActiveDateField("end");
-                  setShowDatePicker(true);
-                }}
-              >
-                <Text style={{ color: endDate ? "#111827" : "#474849" }}>
-                  {endDate || "Select date"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.saveBtn, loading && { opacity: 0.75 }]}
-              onPress={onSave}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="save-outline" size={18} color="#fff" />
-                  <Text style={styles.saveText}>Create prescription</Text>
-                </>
-              )}
+        <View style={styles.wrapper}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
+              <Ionicons name="chevron-back" size={24} color="#111827" />
             </TouchableOpacity>
 
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+            <Text style={styles.headerTitle}>New Prescription</Text>
+            <View style={{ width: 40 }} />
+          </View>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={parseDateString(activeDateField === "start" ? startDate : endDate)}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          themeVariant="light"
-          onChange={handleDateChange}
-        />
-      )}
-      {showTimePicker !== null && (
-        <DateTimePicker
-          value={parseTimeString(times[showTimePicker] || "")}
-          mode="time"
-          is24Hour
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          themeVariant="light"
-          onChange={handleTimeChange}
-        />
-      )}
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Patient Name</Text>
+                <Text style={styles.value}>{loadingPatient ? "Loading..." : patientName}</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Medication</Text>
+
+                <Text style={styles.label}>Medication name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Metformin"
+                  placeholderTextColor="#474849"
+                  value={medName}
+                  onChangeText={setMedName}
+                />
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Dosage</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 1 pill"
+                  placeholderTextColor="#474849"
+                  value={dosage}
+                  onChangeText={setDosage}
+                />
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Notes (optional)</Text>
+                <TextInput
+                  style={[styles.input, { height: 90, textAlignVertical: "top" }]}
+                  placeholder="ex: take with food"
+                  placeholderTextColor="#474849"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                />
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Schedule</Text>
+
+                <Text style={styles.label}>Frequency type</Text>
+                <View style={styles.chipsRow}>
+                  <Chip label="Daily" active={frequencyType === "DAILY"} onPress={() => setFrequencyType("DAILY")} />
+                  <Chip label="Weekly" active={frequencyType === "WEEKLY"} onPress={() => setFrequencyType("WEEKLY")} />
+                </View>
+
+                {frequencyType === "WEEKLY" && (
+                  <>
+                    <Text style={[styles.label, { marginTop: 12 }]}>Days of week</Text>
+                    <View style={[styles.chipsRow, { flexWrap: "wrap" }]}>
+                      {WEEK_DAYS.map((day) => {
+                        const active = daysOfWeek.includes(day);
+                        return (
+                          <Chip
+                            key={day}
+                            label={day}
+                            active={active}
+                            onPress={() =>
+                              setDaysOfWeek((prev) => (active ? prev.filter((d) => d !== day) : [...prev, day]))
+                            }
+                          />
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Times per day</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ex: 1"
+                  placeholderTextColor="#474849"
+                  value={timesPerDay}
+                  onChangeText={(value) => {
+                    const next = value.replace(/[^\d]/g, "");
+                    setTimesPerDay(next);
+                    const count = Math.min(4, Math.max(1, Number(next || "1")));
+                    setTimes((prev) => {
+                      const nextTimes = [...prev];
+                      while (nextTimes.length < count) nextTimes.push("");
+                      return nextTimes.slice(0, count);
+                    });
+                  }}
+                  keyboardType="number-pad"
+                />
+
+                {times.map((time, index) => (
+                  <View key={`${index}-time`} style={{ marginTop: 10 }}>
+                    <Text style={styles.label}>{`Time ${index + 1}`}</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.input}
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowTimePicker(index);
+                      }}
+                    >
+                      <Text style={{ color: time ? "#111827" : "#474849" }}>{time || "Select time"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Start date (required)</Text>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.input}
+                  onPress={() => {
+                    setShowTimePicker(null);
+                    setActiveDateField("start");
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Text style={{ color: startDate ? "#111827" : "#474849" }}>{startDate || "Select date"}</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.label, { marginTop: 12 }]}>End date (required)</Text>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.input}
+                  onPress={() => {
+                    setShowTimePicker(null);
+                    setActiveDateField("end");
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Text style={{ color: endDate ? "#111827" : "#474849" }}>{endDate || "Select date"}</Text>
+                </TouchableOpacity>
+
+                <View style={styles.statusBox}>
+                  <Text style={styles.statusLabel}>Status (auto)</Text>
+                  <Text style={styles.statusValue}>{computedStatusPreview()}</Text>
+                  <Text style={styles.statusHint}>Set a future start date to create a suspended prescription.</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveBtn, loading && { opacity: 0.75 }]}
+                onPress={onSave}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={18} color="#fff" />
+                    <Text style={styles.saveText}>Create prescription</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={parseDateString(activeDateField === "start" ? startDate : endDate)}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            themeVariant="light"
+            onChange={handleDateChange}
+          />
+        )}
+        {showTimePicker !== null && (
+          <DateTimePicker
+            value={parseTimeString(times[showTimePicker] || "")}
+            mode="time"
+            is24Hour
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            themeVariant="light"
+            onChange={handleTimeChange}
+          />
+        )}
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );
@@ -502,14 +516,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 14,
     paddingHorizontal: 14,
-    
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     color: "#111827",
   },
 
-  muted: { fontSize: 12, fontWeight: "800", color: "#111827" },
   value: { marginTop: 6, fontSize: 14, fontWeight: "900", color: "#111827" },
 
   chipsRow: { flexDirection: "row", gap: 10 },
@@ -524,6 +536,19 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "#13a4ec", borderColor: "#13a4ec" },
   chipText: { fontWeight: "900", color: "#0f172a", fontSize: 12 },
   chipTextActive: { color: "#fff" },
+
+  statusBox: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#ffffff",
+    gap: 4,
+  },
+  statusLabel: { fontSize: 12, fontWeight: "900", color: "#64748b" },
+  statusValue: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  statusHint: { fontSize: 11, fontWeight: "700", color: "#94a3b8", lineHeight: 16 },
 
   saveBtn: {
     marginTop: 4,

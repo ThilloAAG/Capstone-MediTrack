@@ -13,32 +13,40 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+
 import { auth, db } from "../../../../../src/firebase";
+import { doc, getDoc, updateDoc, serverTimestamp, deleteDoc, Timestamp } from "firebase/firestore";
+
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-  deleteDoc,
-} from "firebase/firestore";
+  computeRxStatus,
+  parseDateStart,
+  parseDateEnd,
+  isValidYYYYMMDD,
+  formatYYYYMMDD,
+} from "../../../../../services/prescriptionStatus";
+
+type StatusType = "active" | "suspended" | "completed";
+type StatusMode = "auto" | "manual";
 
 type Prescription = {
   id: string;
   medicationName?: string;
   dosage?: string;
   notes?: string | null;
-  frequency?: "once" | "daily" | "weekly";
-  timesPerDay?: number | null;
+
   startDate?: string | null;
   endDate?: string | null;
-  status?: "active" | "paused" | "completed" | string;
+  startDateTs?: Timestamp;
+  endDateTs?: Timestamp;
+
+  status?: StatusType | string;
+  statusMode?: StatusMode | string;
+
+  doctorId?: string;
 };
 
 export default function DoctorPrescriptionDetailScreen() {
-  const params = useLocalSearchParams<{
-    id?: string | string[];
-    rxId?: string | string[];
-  }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; rxId?: string | string[] }>();
 
   const patientId = useMemo(() => {
     if (!params.id) return "";
@@ -54,18 +62,18 @@ export default function DoctorPrescriptionDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [prescription, setPrescription] = useState<Prescription | null>(null);
 
+  // editable fields (keep whatever you had)
   const [medName, setMedName] = useState("");
   const [dosage, setDosage] = useState("");
   const [notes, setNotes] = useState("");
-  const [frequency, setFrequency] = useState<"once" | "daily" | "weekly">(
-    "daily"
-  );
-  const [timesPerDay, setTimesPerDay] = useState("1");
+
+  // dates (needed for auto)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [status, setStatus] = useState<"active" | "paused" | "completed">(
-    "active"
-  );
+
+  // status controls
+  const [statusMode, setStatusMode] = useState<StatusMode>("auto");
+  const [status, setStatus] = useState<StatusType>("active");
 
   useEffect(() => {
     const run = async () => {
@@ -81,13 +89,7 @@ export default function DoctorPrescriptionDetailScreen() {
           return;
         }
 
-        const ref = doc(
-          db,
-          "prescriptions",
-          patientId,
-          "userPrescriptions",
-          rxId
-        );
+        const ref = doc(db, "prescriptions", patientId, "userPrescriptions", rxId);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
           setPrescription(null);
@@ -102,15 +104,21 @@ export default function DoctorPrescriptionDetailScreen() {
         setMedName(data.medicationName ?? "");
         setDosage(data.dosage ?? "");
         setNotes(data.notes ?? "");
-        setFrequency((data.frequency as any) ?? "daily");
-        setTimesPerDay(
-          data.timesPerDay != null && !isNaN(data.timesPerDay)
-            ? String(data.timesPerDay)
-            : "1"
-        );
-        setStartDate(data.startDate ?? "");
-        setEndDate(data.endDate ?? "");
-        setStatus((data.status as any) ?? "active");
+
+        const sdStr =
+          (data.startDate as string) ||
+          (data.startDateTs?.toDate ? formatYYYYMMDD(data.startDateTs.toDate()) : "");
+        const edStr =
+          (data.endDate as string) ||
+          (data.endDateTs?.toDate ? formatYYYYMMDD(data.endDateTs.toDate()) : "");
+
+        setStartDate(sdStr ?? "");
+        setEndDate(edStr ?? "");
+
+        const mode = (data.statusMode as StatusMode) ?? "auto";
+        const st = (data.status as StatusType) ?? "active";
+        setStatusMode(mode === "manual" ? "manual" : "auto");
+        setStatus(st === "suspended" || st === "completed" ? st : "active");
       } catch (e) {
         console.log("❌ Load prescription detail error:", e);
         setPrescription(null);
@@ -122,6 +130,13 @@ export default function DoctorPrescriptionDetailScreen() {
     run();
   }, [patientId, rxId]);
 
+  const computeAutoStatusNow = () => {
+    const sd = parseDateStart(startDate.trim());
+    const ed = parseDateEnd(endDate.trim());
+    if (!sd || !ed) return null;
+    return computeRxStatus(sd, ed, new Date()) as StatusType;
+  };
+
   const validate = () => {
     if (!medName.trim()) {
       Alert.alert("Error", "Medication name is required.");
@@ -131,12 +146,23 @@ export default function DoctorPrescriptionDetailScreen() {
       Alert.alert("Error", "Dosage is required.");
       return false;
     }
-    if (frequency === "daily") {
-      const n = Number(timesPerDay);
-      if (!Number.isFinite(n) || n < 1 || n > 10) {
-        Alert.alert("Error", "Times per day must be between 1 and 10.");
-        return false;
-      }
+    if (!startDate.trim() || !isValidYYYYMMDD(startDate.trim())) {
+      Alert.alert("Error", "Start date is required (YYYY-MM-DD).");
+      return false;
+    }
+    if (!endDate.trim() || !isValidYYYYMMDD(endDate.trim())) {
+      Alert.alert("Error", "End date is required (YYYY-MM-DD).");
+      return false;
+    }
+    const sd = parseDateStart(startDate.trim());
+    const ed = parseDateEnd(endDate.trim());
+    if (!sd || !ed) {
+      Alert.alert("Error", "Invalid date format. Use YYYY-MM-DD.");
+      return false;
+    }
+    if (ed.getTime() < sd.getTime()) {
+      Alert.alert("Error", "End date must be after start date.");
+      return false;
     }
     return true;
   };
@@ -147,27 +173,37 @@ export default function DoctorPrescriptionDetailScreen() {
 
     try {
       setSaving(true);
-      const ref = doc(
-        db,
-        "prescriptions",
-        patientId,
-        "userPrescriptions",
-        rxId
-      );
+
+      const ref = doc(db, "prescriptions", patientId, "userPrescriptions", rxId);
+
+      const sd = parseDateStart(startDate.trim())!;
+      const ed = parseDateEnd(endDate.trim())!;
+
+      // If mode is auto, status follows date-range.
+      // If mode is manual, keep whatever manual status already is.
+      const nextStatus: StatusType =
+        statusMode === "auto" ? (computeRxStatus(sd, ed, new Date()) as StatusType) : status;
 
       const payload: any = {
         medicationName: medName.trim(),
         dosage: dosage.trim(),
         notes: notes.trim() || null,
-        frequency,
-        timesPerDay: frequency === "daily" ? Number(timesPerDay) : null,
-        startDate: startDate.trim() || null,
-        endDate: endDate.trim() || null,
-        status,
+
+        startDate: startDate.trim(),
+        endDate: endDate.trim(),
+        startDateTs: Timestamp.fromDate(sd),
+        endDateTs: Timestamp.fromDate(ed),
+
+        statusMode,
+        status: nextStatus,
+
         updatedAt: serverTimestamp(),
+        ...(statusMode === "auto" ? { statusUpdatedAt: serverTimestamp() } : {}),
       };
 
       await updateDoc(ref, payload);
+
+      setStatus(nextStatus);
       Alert.alert("Saved", "Prescription updated ✅");
     } catch (e: any) {
       console.log("Update prescription error:", e);
@@ -175,6 +211,85 @@ export default function DoctorPrescriptionDetailScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const updateManualStatus = async (next: StatusType) => {
+    if (!patientId || !rxId) return;
+
+    try {
+      setSaving(true);
+      const ref = doc(db, "prescriptions", patientId, "userPrescriptions", rxId);
+
+      await updateDoc(ref, {
+        status: next,
+        statusMode: "manual",
+        statusUpdatedAt: serverTimestamp(),
+        statusManualUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setStatus(next);
+      setStatusMode("manual");
+      Alert.alert("Updated", `Status set to ${next.toUpperCase()} ✅`);
+    } catch (e: any) {
+      console.log("Manual status update error:", e);
+      Alert.alert("Error", e?.message || "Failed to update status.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resumeAutoStatus = async () => {
+    if (!patientId || !rxId) return;
+
+    const next = computeAutoStatusNow();
+    if (!next) {
+      Alert.alert("Error", "Start/End date required to resume auto status.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const ref = doc(db, "prescriptions", patientId, "userPrescriptions", rxId);
+
+      await updateDoc(ref, {
+        status: next,
+        statusMode: "auto",
+        statusUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setStatus(next);
+      setStatusMode("auto");
+      Alert.alert("Auto resumed", `Status is now ${String(next).toUpperCase()} ✅`);
+    } catch (e: any) {
+      console.log("Resume auto status error:", e);
+      Alert.alert("Error", e?.message || "Failed to resume auto status.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onRenew30Days = async () => {
+    const today = new Date();
+    const newStart = formatYYYYMMDD(today);
+
+    const endDt = new Date(today);
+    endDt.setDate(endDt.getDate() + 30);
+    const newEnd = formatYYYYMMDD(endDt);
+
+    Alert.alert("Renew prescription", `Renew for 30 days?\nStart: ${newStart}\nEnd: ${newEnd}`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Renew",
+        onPress: async () => {
+          setStartDate(newStart);
+          setEndDate(newEnd);
+          setStatusMode("auto"); // renew goes back to auto by default
+          setTimeout(() => onSave(), 0);
+        },
+      },
+    ]);
   };
 
   const onDelete = async () => {
@@ -187,22 +302,13 @@ export default function DoctorPrescriptionDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            const ref = doc(
-              db,
-              "prescriptions",
-              patientId,
-              "userPrescriptions",
-              rxId
-            );
+            const ref = doc(db, "prescriptions", patientId, "userPrescriptions", rxId);
             await deleteDoc(ref);
             Alert.alert("Deleted", "Prescription deleted.");
             router.back();
           } catch (e: any) {
             console.log("Delete prescription error:", e);
-            Alert.alert(
-              "Error",
-              e?.message || "Failed to delete prescription."
-            );
+            Alert.alert("Error", e?.message || "Failed to delete prescription.");
           }
         },
       },
@@ -214,11 +320,7 @@ export default function DoctorPrescriptionDetailScreen() {
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            activeOpacity={0.85}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Prescription</Text>
@@ -236,64 +338,105 @@ export default function DoctorPrescriptionDetailScreen() {
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            activeOpacity={0.85}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Prescription</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.empty}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={48}
-            color="#ef4444"
-          />
+          <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
           <Text style={styles.emptyTitle}>Prescription not found</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const autoNow = computeAutoStatusNow();
+  const currentStatus = status; // what is saved in Firestore (auto or manual)
+  const showRenew = currentStatus === "completed";
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {prescription.medicationName || "Prescription"}
-        </Text>
+        <Text style={styles.headerTitle}>{prescription.medicationName || "Prescription"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Status</Text>
+
+          <Text style={styles.statusValue}>{currentStatus.toUpperCase()}</Text>
+          <Text style={styles.statusHint}>Mode: {statusMode.toUpperCase()}</Text>
+
+          {statusMode === "manual" && (
+            <Text style={[styles.statusHint, { marginTop: 6 }]}>
+              Auto (based on dates) would be: {autoNow ? autoNow.toUpperCase() : "—"}
+            </Text>
+          )}
+
+          <View style={{ marginTop: 12, gap: 10 }}>
+            <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+              <TouchableOpacity
+                style={styles.statusBtn}
+                onPress={() => updateManualStatus("active")}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                <Text style={styles.statusBtnText}>Set ACTIVE</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.statusBtn}
+                onPress={() => updateManualStatus("suspended")}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                <Text style={styles.statusBtnText}>Set SUSPENDED</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.statusBtn}
+                onPress={() => updateManualStatus("completed")}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                <Text style={styles.statusBtnText}>Set COMPLETED</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.resumeAutoBtn}
+              onPress={resumeAutoStatus}
+              activeOpacity={0.85}
+              disabled={saving}
+            >
+              <Text style={styles.resumeAutoText}>Resume AUTO</Text>
+            </TouchableOpacity>
+          </View>
+
+          {showRenew && (
+            <TouchableOpacity style={styles.renewBtn} onPress={onRenew30Days} activeOpacity={0.85}>
+              <Ionicons name="refresh-outline" size={18} color="#111827" />
+              <Text style={styles.renewText}>Renew (30 days)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Medication</Text>
 
           <Text style={styles.label}>Medication name</Text>
-          <TextInput
-            style={styles.input}
-            value={medName}
-            onChangeText={setMedName}
-            placeholder="Medication name"
-          />
+          <TextInput style={styles.input} value={medName} onChangeText={setMedName} placeholder="Medication name" />
 
           <Text style={[styles.label, { marginTop: 12 }]}>Dosage</Text>
-          <TextInput
-            style={styles.input}
-            value={dosage}
-            onChangeText={setDosage}
-            placeholder="e.g. 500 mg, 1 pill"
-          />
+          <TextInput style={styles.input} value={dosage} onChangeText={setDosage} placeholder="e.g. 500 mg, 1 pill" />
 
           <Text style={[styles.label, { marginTop: 12 }]}>Notes</Text>
           <TextInput
@@ -306,79 +449,13 @@ export default function DoctorPrescriptionDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Schedule</Text>
+          <Text style={styles.cardTitle}>Dates</Text>
 
-          <Text style={styles.label}>Frequency</Text>
-          <View style={styles.chipsRow}>
-            <Chip
-              label="Once"
-              active={frequency === "once"}
-              onPress={() => setFrequency("once")}
-            />
-            <Chip
-              label="Daily"
-              active={frequency === "daily"}
-              onPress={() => setFrequency("daily")}
-            />
-            <Chip
-              label="Weekly"
-              active={frequency === "weekly"}
-              onPress={() => setFrequency("weekly")}
-            />
-          </View>
+          <Text style={styles.label}>Start date (YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" autoCapitalize="none" />
 
-          {frequency === "daily" && (
-            <>
-              <Text style={[styles.label, { marginTop: 12 }]}>
-                Times per day
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={timesPerDay}
-                onChangeText={setTimesPerDay}
-                keyboardType="number-pad"
-              />
-            </>
-          )}
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Start date</Text>
-          <TextInput
-            style={styles.input}
-            value={startDate}
-            onChangeText={setStartDate}
-            placeholder="YYYY-MM-DD"
-            autoCapitalize="none"
-          />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>End date</Text>
-          <TextInput
-            style={styles.input}
-            value={endDate}
-            onChangeText={setEndDate}
-            placeholder="YYYY-MM-DD"
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Status</Text>
-          <View style={styles.chipsRow}>
-            <Chip
-              label="Active"
-              active={status === "active"}
-              onPress={() => setStatus("active")}
-            />
-            <Chip
-              label="Paused"
-              active={status === "paused"}
-              onPress={() => setStatus("paused")}
-            />
-            <Chip
-              label="Completed"
-              active={status === "completed"}
-              onPress={() => setStatus("completed")}
-            />
-          </View>
+          <Text style={[styles.label, { marginTop: 12 }]}>End date (YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="YYYY-MM-DD" autoCapitalize="none" />
         </View>
 
         <TouchableOpacity
@@ -397,11 +474,7 @@ export default function DoctorPrescriptionDetailScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={onDelete}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.85}>
           <Ionicons name="trash-outline" size={18} color="#ef4444" />
           <Text style={styles.deleteText}>Delete prescription</Text>
         </TouchableOpacity>
@@ -409,28 +482,6 @@ export default function DoctorPrescriptionDetailScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Chip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[styles.chip, active && styles.chipActive]}
-    >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
   );
 }
 
@@ -446,15 +497,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
+
   main: { flex: 1, padding: 16 },
+
   card: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -463,13 +510,9 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     marginBottom: 14,
   },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 10,
-  },
+  cardTitle: { fontSize: 14, fontWeight: "900", color: "#111827", marginBottom: 10 },
   label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8 },
+
   input: {
     backgroundColor: "#fff",
     borderRadius: 14,
@@ -479,18 +522,42 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     color: "#111827",
   },
-  chipsRow: { flexDirection: "row", gap: 10 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
+
+  statusValue: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  statusHint: { marginTop: 6, fontSize: 11, fontWeight: "700", color: "#94a3b8", lineHeight: 16 },
+
+  statusBtn: {
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "#fff",
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  chipActive: { backgroundColor: "#13a4ec", borderColor: "#13a4ec" },
-  chipText: { fontWeight: "900", color: "#0f172a", fontSize: 12 },
-  chipTextActive: { color: "#fff" },
+  statusBtnText: { fontWeight: "900", color: "#111827", fontSize: 12 },
+
+  resumeAutoBtn: {
+    backgroundColor: "#13a4ec",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  resumeAutoText: { color: "#fff", fontWeight: "900" },
+
+  renewBtn: {
+    marginTop: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  renewText: { color: "#111827", fontWeight: "900" },
+
   saveBtn: {
     marginTop: 4,
     backgroundColor: "#13a4ec",
@@ -502,6 +569,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   saveText: { color: "#fff", fontWeight: "900" },
+
   deleteBtn: {
     marginTop: 10,
     backgroundColor: "#fee2e2",
@@ -513,6 +581,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteText: { color: "#ef4444", fontWeight: "900" },
+
   empty: { paddingTop: 60, alignItems: "center" },
   emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: "900" },
 });
