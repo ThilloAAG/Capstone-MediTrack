@@ -16,6 +16,7 @@ type Prescription = {
   endDate?: string;
   notes?: string;
   createdAt?: any;
+  status?: "active" | "paused" | "completed" | string;
 };
 
 export default function PrescriptionsScreen() {
@@ -35,9 +36,9 @@ export default function PrescriptionsScreen() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Prescription[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const data: Prescription[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       })) as Prescription[];
       setPrescriptions(data);
       setLoading(false);
@@ -68,28 +69,40 @@ export default function PrescriptionsScreen() {
         break;
     }
   };
+
   const handleBack = () => {
-  router.back(); // ⬅️ retourne à la page précédente
-};
+    router.back();
+  };
+
+  const renderStatusPill = (status?: string) => {
+    const s = (status || "active").toLowerCase();
+    let color = "#22c55e"; // active
+    if (s === "paused" || s === "suspended") color = "#f59e0b";
+    if (s === "completed") color = "#64748b";
+
+    return (
+      <View style={[styles.statusPill, { backgroundColor: color + "1A" }]}>
+        <Text style={[styles.statusPillText, { color }]}>{s.toUpperCase()}</Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <View style={styles.wrapper}>
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-         {/* HEADER avec flèche de retour */}
-<View style={styles.header}>
-  <TouchableOpacity
-    style={styles.backButton}
-    onPress={handleBack}
-    activeOpacity={0.8}
-  >
-    <Ionicons name="arrow-back" size={24} color="#111618" />
-  </TouchableOpacity>
-  <Text style={styles.headerTitle}>Prescriptions</Text>
-  
-</View>
-
+          {/* HEADER avec flèche de retour */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={24} color="#111618" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Prescriptions</Text>
+          </View>
 
           {/* Liste des prescriptions (par utilisateur) */}
           <View style={styles.prescriptionsContainer}>
@@ -102,8 +115,7 @@ export default function PrescriptionsScreen() {
                     key={p.id}
                     style={[
                       styles.prescriptionItem,
-                      index !== prescriptions.length - 1 &&
-                        styles.prescriptionItemBorder,
+                      index !== prescriptions.length - 1 && styles.prescriptionItemBorder,
                     ]}
                     onPress={() => router.push(`/patient/prescriptions/${p.id}`)}
                     activeOpacity={0.8}
@@ -112,20 +124,18 @@ export default function PrescriptionsScreen() {
                       <Text style={styles.prescriptionName}>
                         {p.medicationName || "Sans nom"}
                       </Text>
-                      <Text style={styles.prescriptionDosage}>
-                        {p.dosage || "-"}
-                      </Text>
+                      <Text style={styles.prescriptionDosage}>{p.dosage || "-"}</Text>
                       {(p.startDate || p.endDate) && (
                         <Text style={styles.prescriptionDates}>
-                          {(p.startDate || "")} {p.endDate ? `→ ${p.endDate}` : ""}
+                          {p.startDate || ""} {p.endDate ? `→ ${p.endDate}` : ""}
                         </Text>
                       )}
                     </View>
+
                     <View style={styles.prescriptionTiming}>
                       <Text style={styles.nextIntakeLabel}>Fréquence</Text>
-                      <Text style={styles.nextIntakeTime}>
-                        {p.frequency || "-"}
-                      </Text>
+                      <Text style={styles.nextIntakeTime}>{p.frequency || "-"}</Text>
+                      {renderStatusPill(p.status)}
                     </View>
                   </TouchableOpacity>
                 ))
@@ -153,12 +163,28 @@ export default function PrescriptionsScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="home" size={24} color="#6b7280" />
-            <Text style={styles.navText}>Dashboard</Text>
+            <Text
+              style={styles.navText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Dashboard
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.navItem} activeOpacity={0.8}>
             <Ionicons name="medical" size={24} color="#0A84FF" />
-            <Text style={[styles.navText, styles.navTextActive]}>Prescriptions</Text>
+            <Text
+              style={[styles.navText, styles.navTextActive]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Prescriptions
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -167,7 +193,15 @@ export default function PrescriptionsScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="hardware-chip" size={24} color="#6b7280" />
-            <Text style={styles.navText}>Machines</Text>
+            <Text
+              style={styles.navText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Machines
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -176,7 +210,15 @@ export default function PrescriptionsScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="notifications" size={24} color="#6b7280" />
-            <Text style={styles.navText}>Notifications</Text>
+            <Text
+              style={styles.navText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Notifications
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -185,7 +227,15 @@ export default function PrescriptionsScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="person" size={24} color="#6b7280" />
-            <Text style={styles.navText}>Profile</Text>
+            <Text
+              style={styles.navText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              Profile
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -195,49 +245,31 @@ export default function PrescriptionsScreen() {
 
 // Styles
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f7f8fa",
-  },
-  wrapper: {
-    flex: 1,
-  },
-  main: {
-    flex: 1,
-    paddingBottom: 120,
-  },
+  container: { flex: 1, backgroundColor: "#f7f8fa" },
+  wrapper: { flex: 1 },
+  main: { flex: 1, paddingBottom: 120 },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#f6f7f8cc',
+    backgroundColor: "#f6f7f8cc",
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f3f4',
+    borderBottomColor: "#f0f3f4",
   },
-  backButton: {
-    padding: 4,
-  },
- headerTitle: {
+  backButton: { padding: 4 },
+  headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111618',
+    fontWeight: "700",
+    color: "#111618",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     paddingRight: 32,
   },
-  spacer: {
-    width: 32,
-  },
 
-  prescriptionsContainer: {
-    paddingHorizontal: 16,
-  },
-  prescriptionsList: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    overflow: "hidden",
-  },
+  prescriptionsContainer: { paddingHorizontal: 16 },
+  prescriptionsList: { backgroundColor: "#ffffff", borderRadius: 24, overflow: "hidden" },
   prescriptionItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -245,46 +277,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  prescriptionItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  prescriptionInfo: {
-    flex: 1,
-  },
-  prescriptionName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 4,
-  },
-  prescriptionDosage: {
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  prescriptionDates: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginTop: 4,
-  },
-  prescriptionTiming: {
-    alignItems: "flex-end",
-  },
-  nextIntakeLabel: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 4,
-  },
-  nextIntakeTime: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  emptyText: {
-    textAlign: "center",
-    padding: 20,
-    color: "#6b7280",
-  },
+  prescriptionItemBorder: { borderBottomWidth: 1, borderBottomColor: "#e5e7eb" },
+  prescriptionInfo: { flex: 1 },
+  prescriptionName: { fontSize: 18, fontWeight: "600", color: "#000000", marginBottom: 4 },
+  prescriptionDosage: { fontSize: 16, color: "#6b7280" },
+  prescriptionDates: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
+  prescriptionTiming: { alignItems: "flex-end" },
+  nextIntakeLabel: { fontSize: 14, color: "#6b7280", marginBottom: 4 },
+  nextIntakeTime: { fontSize: 16, fontWeight: "600", color: "#000000" },
+
+  statusPill: { marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusPillText: { fontSize: 11, fontWeight: "700" },
+
+  emptyText: { textAlign: "center", padding: 20, color: "#6b7280" },
+
   addButton: {
     position: "absolute",
     bottom: 120,
@@ -296,14 +302,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#0A84FF",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 12,
   },
+
   bottomNavigation: {
     flexDirection: "row",
     backgroundColor: "#ffffffb3",
@@ -311,6 +315,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#e5e7eb",
     paddingTop: 8,
     paddingBottom: 8,
+    paddingHorizontal: 8, // a bit more room per item
   },
   navItem: {
     flex: 1,
@@ -320,13 +325,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   navText: {
-    fontSize: 12,
+    fontSize: 11,          // smaller to avoid wrap
     fontWeight: "500",
     color: "#6b7280",
+    letterSpacing: -0.3,   // tighter
+    textAlign: "center",
+    includeFontPadding: false as any, // harmless on iOS, helps Android spacing
   },
   navTextActive: {
+    fontSize: 11,
     color: "#0A84FF",
     fontWeight: "600",
+    letterSpacing: -0.3,
   },
 });
-

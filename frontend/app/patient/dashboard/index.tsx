@@ -1,14 +1,36 @@
 // app/patient/dashboard/index.tsx
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { db, auth } from "../../../src/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  where,
+  getDoc,
+  doc,
+} from "firebase/firestore";
 import { generateUpcomingDoses } from "../../../services/upcomingDosesService";
-import { format, differenceInMinutes, addHours, isAfter, isBefore } from "date-fns";
+import {
+  format,
+  differenceInMinutes,
+  addHours,
+  isAfter,
+  isBefore,
+} from "date-fns";
 
 interface Prescription {
   id: string;
@@ -34,10 +56,19 @@ interface UpcomingDose {
   reminderTime?: string;
 }
 
+type LinkedDoctor = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 export default function DashboardScreen() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [upcomingDoses, setUpcomingDoses] = useState<UpcomingDose[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const [linkedDoctors, setLinkedDoctors] = useState<LinkedDoctor[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState<boolean>(true);
 
   const handleAddDoctor = (): void => {
     router.push("/patient/doctors/add");
@@ -68,6 +99,7 @@ export default function DashboardScreen() {
     }
   };
 
+  // Load prescriptions + upcoming doses
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -81,9 +113,9 @@ export default function DashboardScreen() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Prescription[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const data: Prescription[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       })) as Prescription[];
 
       setPrescriptions(data);
@@ -95,6 +127,83 @@ export default function DashboardScreen() {
     });
 
     return unsubscribe;
+  }, []);
+
+  // Load linked doctors for this patient
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLinkedDoctors([]);
+      setLoadingDoctors(false);
+      return;
+    }
+
+    setLoadingDoctors(true);
+
+    const qLinks = query(
+      collection(db, "doctorPatientLinks"),
+      where("patientId", "==", user.uid),
+      where("status", "==", "active")
+    );
+
+    const unsub = onSnapshot(
+      qLinks,
+      async (snap) => {
+        try {
+          if (snap.empty) {
+            setLinkedDoctors([]);
+            setLoadingDoctors(false);
+            return;
+          }
+
+          const docs = await Promise.all(
+            snap.docs.map(async (linkDoc) => {
+              const data = linkDoc.data() as any;
+              const doctorId = data.doctorId as string;
+              if (!doctorId) return null;
+
+              try {
+                const userSnap = await getDoc(doc(db, "users", doctorId));
+                if (!userSnap.exists()) {
+                  return {
+                    id: doctorId,
+                    name: "Unknown doctor",
+                    email: doctorId,
+                  } as LinkedDoctor;
+                }
+
+                const uData = userSnap.data() as any;
+                return {
+                  id: userSnap.id,
+                  name: uData?.name || "Doctor",
+                  email: uData?.email || userSnap.id,
+                } as LinkedDoctor;
+              } catch {
+                return {
+                  id: doctorId,
+                  name: "Unknown doctor",
+                  email: doctorId,
+                } as LinkedDoctor;
+              }
+            })
+          );
+
+          setLinkedDoctors(docs.filter(Boolean) as LinkedDoctor[]);
+          setLoadingDoctors(false);
+        } catch (e) {
+          console.log("Load linkedDoctors error:", e);
+          setLinkedDoctors([]);
+          setLoadingDoctors(false);
+        }
+      },
+      (err) => {
+        console.log("doctorPatientLinks listen error:", err);
+        setLinkedDoctors([]);
+        setLoadingDoctors(false);
+      }
+    );
+
+    return () => unsub();
   }, []);
 
   if (loading) {
@@ -142,11 +251,8 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.spacer} />
           <Text style={styles.headerTitle}>Dashboard</Text>
-
-          {/* ✅ Add Doctor button */}
-          <TouchableOpacity style={styles.settingsButton} onPress={handleAddDoctor} activeOpacity={0.8}>
-            <Ionicons name="person-add-outline" size={24} color="#111618" />
-          </TouchableOpacity>
+          {/* removed top-right Add Doctor icon */}
+          <View style={styles.spacer} />
         </View>
 
         <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
@@ -173,8 +279,12 @@ export default function DashboardScreen() {
                       <Text style={styles.doseDosage}>{dose.dosage}</Text>
                     </View>
                     <View style={styles.doseTimeContainer}>
-                      <Text style={styles.doseTime}>{format(dose.scheduledTime, "h:mm a")}</Text>
-                      <Text style={styles.doseCountdown}>{formatTimeUntil(dose.scheduledTime)}</Text>
+                      <Text style={styles.doseTime}>
+                        {format(dose.scheduledTime, "h:mm a")}
+                      </Text>
+                      <Text style={styles.doseCountdown}>
+                        {formatTimeUntil(dose.scheduledTime)}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -213,14 +323,74 @@ export default function DashboardScreen() {
           <View style={styles.quickActionsContainer}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
-              <TouchableOpacity style={styles.primaryActionButton} onPress={handleDispenseNow} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.primaryActionButton}
+                onPress={handleDispenseNow}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.primaryActionText}>Dispense Now</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.secondaryActionButton} onPress={handleEmergency} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.secondaryActionButton}
+                onPress={handleEmergency}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.secondaryActionText}>Emergency</Text>
               </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Your Doctors */}
+          <View style={styles.doctorsContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your Doctors</Text>
+              {linkedDoctors.length > 0 && (
+                <Text style={styles.timeframeText}>{linkedDoctors.length} linked</Text>
+              )}
+            </View>
+
+            <View style={styles.doctorsList}>
+              {loadingDoctors ? (
+                <View style={{ paddingVertical: 20 }}>
+                  <ActivityIndicator size="small" color="#13a4ec" />
+                </View>
+              ) : linkedDoctors.length === 0 ? (
+                <View style={styles.emptyDoctors}>
+                  <Text style={styles.emptyDoctorsText}>No doctors linked yet.</Text>
+                </View>
+              ) : (
+                linkedDoctors.map((docItem, index) => (
+                  <View
+                    key={docItem.id}
+                    style={[
+                      styles.doctorRow,
+                      index !== linkedDoctors.length - 1 && styles.doctorRowDivider,
+                    ]}
+                  >
+                    <View style={styles.doctorAvatar}>
+                      <Text style={styles.doctorAvatarText}>
+                        {docItem.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.doctorName}>{docItem.name}</Text>
+                      <Text style={styles.doctorEmail}>{docItem.email}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* Always-visible Add Doctor button */}
+            <TouchableOpacity
+              style={styles.addDoctorButton}
+              onPress={handleAddDoctor}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="person-add-outline" size={18} color="#ffffff" />
+              <Text style={styles.addDoctorButtonText}>Add Doctor</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
 
@@ -231,22 +401,38 @@ export default function DashboardScreen() {
             <Text style={[styles.navText, styles.navTextActive]}>Dashboard</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("prescriptions")} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleNavigateToTab("prescriptions")}
+            activeOpacity={0.8}
+          >
             <Ionicons name="medical" size={24} color="#617c89" />
             <Text style={styles.navText}>Prescriptions</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("machines")} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleNavigateToTab("machines")}
+            activeOpacity={0.8}
+          >
             <Ionicons name="hardware-chip" size={24} color="#617c89" />
             <Text style={styles.navText}>Machines</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("notifications")} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleNavigateToTab("notifications")}
+            activeOpacity={0.8}
+          >
             <Ionicons name="notifications" size={24} color="#617c89" />
             <Text style={styles.navText}>Notifications</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItem} onPress={() => handleNavigateToTab("profile")} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleNavigateToTab("profile")}
+            activeOpacity={0.8}
+          >
             <Ionicons name="person" size={24} color="#617c89" />
             <Text style={styles.navText}>Profile</Text>
           </TouchableOpacity>
@@ -259,6 +445,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f6f7f8" },
   wrapper: { flex: 1 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -271,13 +458,19 @@ const styles = StyleSheet.create({
   },
   spacer: { width: 48 },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#111618" },
-  settingsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+
   main: { flex: 1, paddingHorizontal: 16 },
 
   upcomingDosesContainer: { marginTop: 16, marginBottom: 24 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#111618" },
   timeframeText: { fontSize: 12, color: "#617c89", fontWeight: "500" },
+
   dosesScrollView: { maxHeight: 240, backgroundColor: "#ffffff", borderRadius: 16, padding: 12 },
   doseCard: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f0f3f4" },
   doseIconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#e3f5ff", alignItems: "center", justifyContent: "center", marginRight: 12 },
@@ -287,6 +480,7 @@ const styles = StyleSheet.create({
   doseTimeContainer: { alignItems: "flex-end" },
   doseTime: { fontSize: 14, fontWeight: "600", color: "#f59e0b", marginBottom: 2 },
   doseCountdown: { fontSize: 11, color: "#617c89" },
+
   emptyDoses: { backgroundColor: "#ffffff", borderRadius: 16, padding: 32, alignItems: "center" },
   emptyText: { fontSize: 14, color: "#617c89", marginTop: 8, textAlign: "center" },
 
@@ -323,17 +517,38 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   primaryActionText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
-  secondaryActionButton: {
-    flex: 1,
+  secondaryActionButton: { flex: 1, height: 48, backgroundColor: "#ffffff", borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#f0f3f4" },
+  secondaryActionText: { color: "#111618", fontSize: 14, fontWeight: "700" },
+
+  doctorsContainer: { marginBottom: 24 },
+  doctorsList: { backgroundColor: "#ffffff", borderRadius: 16, borderWidth: 1, borderColor: "#f0f3f4", overflow: "hidden" },
+
+  emptyDoctors: { paddingVertical: 18, paddingHorizontal: 14, alignItems: "center" },
+  emptyDoctorsText: { marginTop: 2, fontSize: 13, color: "#6b7280", textAlign: "center", fontWeight: "600" },
+
+  doctorRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12 },
+  doctorRowDivider: { borderBottomWidth: 1, borderBottomColor: "#e5e7eb" },
+  doctorAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#e3f5ff", alignItems: "center", justifyContent: "center", marginRight: 10 },
+  doctorAvatarText: { fontSize: 16, fontWeight: "800", color: "#13a4ec" },
+  doctorName: { fontSize: 14, fontWeight: "800", color: "#111827" },
+  doctorEmail: { fontSize: 12, fontWeight: "600", color: "#6b7280", marginTop: 2 },
+
+  addDoctorButton: {
+    marginTop: 12,
     height: 48,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#13a4ec",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#f0f3f4",
+    flexDirection: "row",
+    gap: 8,
+    shadowColor: "#13a4ec",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  secondaryActionText: { color: "#111618", fontSize: 14, fontWeight: "700" },
+  addDoctorButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
 
   bottomNavigation: {
     flexDirection: "row",
