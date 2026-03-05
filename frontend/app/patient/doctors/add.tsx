@@ -1,4 +1,3 @@
-// app/patient/doctors/add.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -47,13 +46,13 @@ export default function PatientAddDoctorScreen() {
       return;
     }
 
-    const cleanEmail = (doctorEmail || "").trim().toLowerCase();
+    const cleanEmail = doctorEmail.trim().toLowerCase();
     if (!cleanEmail) {
       Alert.alert("Error", "Please enter a doctor email.");
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(cleanEmail)) {
       Alert.alert("Error", "Invalid email format.");
       return;
@@ -68,32 +67,32 @@ export default function PatientAddDoctorScreen() {
         return;
       }
 
-      if (doctor?.role && String(doctor.role).toLowerCase() !== "doctor") {
+      if (String(doctor.role || "").toLowerCase() !== "doctor") {
         Alert.alert("Not a doctor", "This user is not registered as a doctor.");
         return;
       }
 
-      const doctorId = doctor.id;
+      const doctorId = doctor.id as string;
+
+      // ✅ underscore-only doc id
       const linkId = `${patientUid}_${doctorId}`;
       const linkRef = doc(db, "doctorPatientLinks", linkId);
 
-      // (Optionnel) check existence — avec les nouvelles rules, ça ne doit plus throw
+      // Optional existence check
       try {
         const existing = await getDoc(linkRef);
         if (existing.exists()) {
           const data = existing.data() as any;
           Alert.alert(
             "Already requested",
-            `Link already exists.\nStatus: ${String(data?.status || "unknown").toUpperCase()}`
+            `Link already exists. Status: ${String(data?.status ?? "unknown").toUpperCase()}`
           );
           return;
         }
       } catch (e) {
-        // Si jamais ça throw encore, on n'empêche pas l'utilisateur : on tente create.
         console.log("Existing link check skipped:", e);
       }
 
-      // Create request (patient-driven)
       await setDoc(linkRef, {
         patientId: patientUid,
         doctorId,
@@ -102,7 +101,7 @@ export default function PatientAddDoctorScreen() {
         acceptedAt: null,
       });
 
-      Alert.alert("Request sent ✅", "Your doctor will need to accept it.");
+      Alert.alert("Request sent", "Your doctor will need to accept it.");
       router.back();
     } catch (e: any) {
       console.log("Send request error:", e);
@@ -115,16 +114,11 @@ export default function PatientAddDoctorScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.85}>
             <Ionicons name="chevron-back" size={22} color="#111827" />
           </TouchableOpacity>
-
           <Text style={styles.headerTitle}>Add Doctor</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -174,7 +168,6 @@ const styles = StyleSheet.create({
   },
   iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
-
   main: { flex: 1, padding: 16 },
   label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8 },
   input: {
@@ -186,15 +179,8 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     color: "#0f172a",
   },
-  btn: {
-    marginTop: 16,
-    backgroundColor: "#13a4ec",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
+  btn: { marginTop: 16, backgroundColor: "#13a4ec", paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   btnText: { color: "#fff", fontWeight: "900" },
-
   help: { marginTop: 14, color: "#64748b", fontSize: 12, lineHeight: 16 },
   mono: { fontWeight: "900", color: "#334155" },
 });

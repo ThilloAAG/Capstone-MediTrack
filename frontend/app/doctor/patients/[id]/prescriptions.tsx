@@ -109,7 +109,7 @@ export default function DoctorPatientPrescriptionsScreen() {
             const data = userSnap.data() as any;
             setPatientName(data?.name ?? data?.fullName ?? "");
           }
-        } catch {}
+        } catch { }
 
         // Load prescriptions
         const ref = collection(db, "prescriptions", patientId, "userPrescriptions");
@@ -153,10 +153,10 @@ export default function DoctorPatientPrescriptionsScreen() {
       s === "active"
         ? "#22c55e"
         : s === "suspended"
-        ? "#f59e0b"
-        : s === "completed"
-        ? "#64748b"
-        : "#13a4ec";
+          ? "#f59e0b"
+          : s === "completed"
+            ? "#64748b"
+            : "#13a4ec";
 
     return (
       <View style={[styles.pill, { backgroundColor: color + "22" }]}>

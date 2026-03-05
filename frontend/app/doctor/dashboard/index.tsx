@@ -1,3 +1,4 @@
+// frontend/app/doctor/dashboard/index.tsx 
 import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
@@ -25,7 +26,7 @@ import {
 type PatientProfile = {
   id: string;
   name: string;
-  email: string;
+  email: string; // always a displayable string now
   risk?: "high" | "medium" | "low";
   lastUpdate?: any;
 };
@@ -36,6 +37,13 @@ type Link = {
   status: "pending" | "active" | "rejected";
   acceptedAt?: any;
 };
+
+function pickNonEmptyString(...values: any[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return "";
+}
 
 export default function DoctorDashboardScreen() {
   const router = useRouter();
@@ -74,18 +82,29 @@ export default function DoctorDashboardScreen() {
             links.map(async (l) => {
               try {
                 const userSnap = await getDoc(doc(db, "users", l.patientId));
+
                 if (!userSnap.exists()) {
                   return {
                     id: l.patientId,
                     name: "Unknown patient",
-                    email: l.patientId,
+                    email: "Email unavailable",
                   } as PatientProfile;
                 }
+
                 const data = userSnap.data() as any;
+
+                const displayName =
+                  pickNonEmptyString(data?.name, data?.fullName) ||
+                  "Unnamed patient";
+
+                // ✅ Email only (no UID fallback)
+                const displayEmail =
+                  pickNonEmptyString(data?.email) || "Email unavailable";
+
                 return {
                   id: userSnap.id,
-                  name: data?.name ?? "Unnamed patient",
-                  email: data?.email ?? userSnap.id,
+                  name: displayName,
+                  email: displayEmail,
                   risk: data?.risk ?? undefined,
                   lastUpdate: data?.lastUpdate ?? undefined,
                 } as PatientProfile;
@@ -93,7 +112,7 @@ export default function DoctorDashboardScreen() {
                 return {
                   id: l.patientId,
                   name: "Unknown patient",
-                  email: l.patientId,
+                  email: "Email unavailable",
                 } as PatientProfile;
               }
             })
@@ -266,9 +285,7 @@ export default function DoctorDashboardScreen() {
               >
                 <Ionicons name="medical" size={18} color="#13a4ec" />
               </View>
-              <Text style={styles.statValue}>
-                {loadingRx ? "…" : activeRx}
-              </Text>
+              <Text style={styles.statValue}>{loadingRx ? "…" : activeRx}</Text>
               <Text style={styles.statLabel}>Prescriptions</Text>
             </View>
 
@@ -348,52 +365,55 @@ export default function DoctorDashboardScreen() {
                 </Text>
               </View>
             ) : (
-              patients.slice(0, 4).map((p, index) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[
-                    styles.patientRow,
-                    index !== Math.min(3, patients.length - 1) &&
+              patients.slice(0, 4).map((p, index) => {
+                const initial = (p.name?.[0] || "P").toUpperCase();
+
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[
+                      styles.patientRow,
+                      index !== Math.min(3, patients.length - 1) &&
                       styles.rowDivider,
-                  ]}
-                  onPress={() => router.push(`/doctor/patients/${p.id}`)}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {p.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.patientName}>{p.name}</Text>
-                    <Text style={styles.patientMeta}>{p.email}</Text>
-                  </View>
-                  <View style={styles.rightCol}>
-                    {p.risk && (
-                      <View
-                        style={[
-                          styles.badge,
-                          { backgroundColor: badgeColor(p.risk) + "20" },
-                        ]}
-                      >
-                        <Text
+                    ]}
+                    onPress={() => router.push(`/doctor/patients/${p.id}`)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{initial}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.patientName}>{p.name}</Text>
+                      {/* ✅ Email only (never UID) */}
+                      <Text style={styles.patientMeta}>{p.email}</Text>
+                    </View>
+                    <View style={styles.rightCol}>
+                      {p.risk && (
+                        <View
                           style={[
-                            styles.badgeText,
-                            { color: badgeColor(p.risk) },
+                            styles.badge,
+                            { backgroundColor: badgeColor(p.risk) + "20" },
                           ]}
                         >
-                          {p.risk.toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color="#d1d5db"
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))
+                          <Text
+                            style={[
+                              styles.badgeText,
+                              { color: badgeColor(p.risk) },
+                            ]}
+                          >
+                            {p.risk.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color="#d1d5db"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
             )}
           </View>
         </ScrollView>
@@ -526,7 +546,6 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "900" },
 
-  // Red badge on header icon
   badgeDot: {
     position: "absolute",
     top: -4,
@@ -539,7 +558,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  // Smaller offset for the quick-action button icon
   badgeDotQuick: {
     position: "absolute",
     top: -6,

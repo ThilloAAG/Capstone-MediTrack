@@ -1,5 +1,4 @@
-// app/doctor/patients/requests.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -60,7 +59,6 @@ export default function DoctorRequestsScreen() {
       async (snap) => {
         try {
           const links = snap.docs.map((d) => d.data() as Link);
-
           const enriched = await Promise.all(
             links.map(async (l) => {
               try {
@@ -75,7 +73,10 @@ export default function DoctorRequestsScreen() {
                   },
                 };
               } catch {
-                return { ...l, patient: { id: l.patientId, name: "Unknown patient", email: l.patientId } };
+                return {
+                  ...l,
+                  patient: { id: l.patientId, name: "Unknown patient", email: l.patientId },
+                };
               }
             })
           );
@@ -102,13 +103,15 @@ export default function DoctorRequestsScreen() {
     const doctorId = auth.currentUser?.uid;
     if (!doctorId) return;
 
+    // ✅ underscore-only doc id
     const linkId = `${patientId}_${doctorId}`;
+
     try {
       await updateDoc(doc(db, "doctorPatientLinks", linkId), {
         status: "active",
         acceptedAt: serverTimestamp(),
       });
-      Alert.alert("Accepted", "Patient link activated ✅");
+      Alert.alert("Accepted", "Patient link activated.");
     } catch (e: any) {
       console.log("Accept error:", e);
       Alert.alert("Error", e?.message || "Failed to accept request.");
@@ -120,10 +123,9 @@ export default function DoctorRequestsScreen() {
     if (!doctorId) return;
 
     const linkId = `${patientId}_${doctorId}`;
+
     try {
-      await updateDoc(doc(db, "doctorPatientLinks", linkId), {
-        status: "rejected",
-      });
+      await updateDoc(doc(db, "doctorPatientLinks", linkId), { status: "rejected" });
       Alert.alert("Rejected", "Request rejected.");
     } catch (e: any) {
       console.log("Reject error:", e);
@@ -146,7 +148,7 @@ export default function DoctorRequestsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Pending doctor requests</Text>
           <Text style={styles.muted}>
-            Accepting a request gives you access to the patient’s prescriptions.
+            Accepting a request gives you access to the patient&apos;s prescriptions.
           </Text>
         </View>
 
@@ -164,7 +166,7 @@ export default function DoctorRequestsScreen() {
             </View>
           ) : (
             items.map((it, idx) => (
-              <View key={`${it.patientId}_${idx}`} style={[styles.row, idx !== items.length - 1 && styles.rowDivider]}>
+              <View key={it.patientId + idx} style={[styles.row, idx !== items.length - 1 && styles.rowDivider]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name}>{it.patient?.name ?? "Patient"}</Text>
                   <Text style={styles.sub}>{it.patient?.email ?? it.patientId}</Text>
@@ -211,23 +213,14 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
   main: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 14,
-  },
+  card: { backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#e2e8f0", marginBottom: 14 },
   cardTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
   muted: { marginTop: 6, color: "#64748b", fontWeight: "700", fontSize: 12, lineHeight: 16 },
-
-  listCard: { backgroundColor: "#ffffff", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#e2e8f0" },
+  listCard: { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#e2e8f0" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 14 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
   name: { fontSize: 14, fontWeight: "900", color: "#111827" },
   sub: { marginTop: 2, fontSize: 12, fontWeight: "700", color: "#64748b" },
-
-  btn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12 },
+  btn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, marginLeft: 8 },
   btnText: { color: "#fff", fontWeight: "900", fontSize: 12 },
 });
