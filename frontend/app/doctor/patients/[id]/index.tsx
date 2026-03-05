@@ -1,3 +1,4 @@
+// frontend/app/doctor/patients/[id]/index.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -23,6 +24,13 @@ type Patient = {
   role?: string;
 };
 
+function pickNonEmptyString(...values: any[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return "";
+}
+
 export default function DoctorPatientDetail() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
 
@@ -37,6 +45,8 @@ export default function DoctorPatientDetail() {
 
   useEffect(() => {
     const run = async () => {
+      setLoading(true);
+
       try {
         const doctorUid = auth.currentUser?.uid;
         if (!doctorUid) {
@@ -55,7 +65,18 @@ export default function DoctorPatientDetail() {
           return;
         }
 
-        setPatient({ id: snap.id, ...(snap.data() as any) });
+        const data = snap.data() as any;
+
+        const normalizedName = pickNonEmptyString(data?.name, data?.fullName);
+        const normalizedEmail = pickNonEmptyString(data?.email);
+        const normalizedRole = pickNonEmptyString(data?.role);
+
+        setPatient({
+          id: snap.id,
+          name: normalizedName || undefined,
+          email: normalizedEmail || undefined,
+          role: normalizedRole || undefined,
+        });
       } catch (e) {
         console.log("❌ Patient detail error:", e);
         setPatient(null);
@@ -70,9 +91,11 @@ export default function DoctorPatientDetail() {
   const handleUnlinkPatient = () => {
     if (!patientId || !patient) return;
 
+    const displayName = patient.name || "this patient";
+
     Alert.alert(
       "Unlink patient",
-      `Are you sure you want to unlink ${patient.name || "this patient"}?`,
+      `Are you sure you want to unlink ${displayName}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -154,8 +177,9 @@ export default function DoctorPatientDetail() {
                   <Text style={styles.name}>
                     {patient.name || "Unnamed patient"}
                   </Text>
+                  {/* ✅ Show email only (no UID fallback) */}
                   <Text style={styles.sub}>
-                    {patient.email || patient.id}
+                    {patient.email || "Email unavailable"}
                   </Text>
                 </View>
               </View>
@@ -172,11 +196,6 @@ export default function DoctorPatientDetail() {
                       Alert.alert("Error", "Missing patient id");
                       return;
                     }
-
-                    console.log(
-                      "➡️ NAV to new prescription for:",
-                      patientId
-                    );
 
                     router.push({
                       pathname: "/doctor/patients/[id]/new-prescription",
@@ -222,9 +241,7 @@ export default function DoctorPatientDetail() {
               {/* META + UNLINK */}
               <View style={styles.metaCard}>
                 <Text style={styles.metaTitle}>Account</Text>
-                <Text style={styles.metaLine}>
-                  Role: {patient.role || "-"}
-                </Text>
+                <Text style={styles.metaLine}>Role: {patient.role || "-"}</Text>
                 <Text style={styles.metaLine}>UID: {patient.id}</Text>
 
                 <TouchableOpacity
@@ -246,6 +263,7 @@ export default function DoctorPatientDetail() {
                     </>
                   )}
                 </TouchableOpacity>
+
                 <Text style={styles.unlinkHint}>
                   Unlinking removes this patient from your list. You can only
                   access their data again after a new link request.
