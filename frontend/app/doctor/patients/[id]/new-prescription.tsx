@@ -263,7 +263,7 @@ export default function NewPrescriptionScreen() {
 
       const created = await addDoc(rxRef, payload);
 
-      Alert.alert("Success", `Prescription created ✅\nID: ${created.id}`);
+      Alert.alert("Success", `Prescription created ✅`);
       router.back();
     } catch (e: any) {
       console.log("Create prescription error:", e);

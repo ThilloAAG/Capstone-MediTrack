@@ -14,8 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams } from "expo-router";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, where, query, collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
+import{isScheduleActive} from"../utils/schedulesUtils";
 
 export default function NewPrescriptionScreen() {
   // Prescription fields
@@ -87,6 +88,8 @@ export default function NewPrescriptionScreen() {
       return;
     }
 
+      const active = isScheduleActive(startDate, endDate);
+
     try {
       await updateDoc(ref, {
         medicationName,
@@ -96,8 +99,24 @@ export default function NewPrescriptionScreen() {
         endDate,
         time,
         notes,
-        createdAt: new Date(),
+        updatedAt: new Date(),
       });
+      const schedulesQuery = query(
+  collection(db, "schedules"),
+  where("prescriptionId", "==", id)
+);
+
+const snapshot = await getDocs(schedulesQuery);
+
+for (const docSnap of snapshot.docs) {
+  await updateDoc(docSnap.ref, {
+    startDate,
+    endDate: endDate || null,
+    time,
+    active,
+    updatedAt: new Date(),
+  });
+}
 
       Alert.alert("Success", "Prescription updated!");
       router.push("/patient/prescriptions");
