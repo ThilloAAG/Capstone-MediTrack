@@ -308,6 +308,8 @@ export default function NewPrescriptionScreen() {
         status,
         statusMode: "auto",
         statusUpdatedAt: serverTimestamp(),
+        missedCount: 0,
+        riskLevel: "NORMAL"
       };
 
       const created = await addDoc(rxRef, payload);
