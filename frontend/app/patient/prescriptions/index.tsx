@@ -1,11 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { db, auth } from "../../../src/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  where,
+} from "firebase/firestore";
 
 type Prescription = {
   id: string;
@@ -16,12 +29,15 @@ type Prescription = {
   endDate?: string;
   notes?: string;
   createdAt?: any;
-  status?: "active" | "paused" | "completed" | string;
+  status?: "active" | "paused" | "completed" | "suspended" | string;
 };
+
+type MissedMap = Record<string, number>;
 
 export default function PrescriptionsScreen() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [missedMap, setMissedMap] = useState<MissedMap>({});
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -35,14 +51,66 @@ export default function PrescriptionsScreen() {
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Prescription[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      })) as Prescription[];
-      setPrescriptions(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data: Prescription[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Prescription[];
+
+        setPrescriptions(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.log("Load prescriptions error:", error);
+        setPrescriptions([]);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setMissedMap({});
+      return;
+    }
+
+    const qLogs = query(
+      collection(db, "dispenseLogs"),
+      where("patientId", "==", user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      qLogs,
+      (snapshot) => {
+        const since = new Date();
+        since.setDate(since.getDate() - 7);
+
+        const nextMap: MissedMap = {};
+
+        snapshot.docs.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          const prescriptionId = String(data?.prescriptionId || "");
+          const status = String(data?.status || "").toUpperCase();
+          const actualTime = data?.actualTime?.toDate?.();
+
+          if (!prescriptionId || !actualTime || actualTime < since) return;
+          if (status !== "MISSED") return;
+
+          nextMap[prescriptionId] = (nextMap[prescriptionId] || 0) + 1;
+        });
+
+        setMissedMap(nextMap);
+      },
+      (error) => {
+        console.log("Load dispense logs error:", error);
+        setMissedMap({});
+      }
+    );
 
     return unsubscribe;
   }, []);
@@ -76,7 +144,7 @@ export default function PrescriptionsScreen() {
 
   const renderStatusPill = (status?: string) => {
     const s = (status || "active").toLowerCase();
-    let color = "#22c55e"; // active
+    let color = "#22c55e";
     if (s === "paused" || s === "suspended") color = "#f59e0b";
     if (s === "completed") color = "#64748b";
 
@@ -87,58 +155,92 @@ export default function PrescriptionsScreen() {
     );
   };
 
+  const renderMissedPill = (missedCount: number) => {
+    const isHigh = missedCount > 3;
+    const bgColor = isHigh ? "#fee2e2" : "#dcfce7";
+    const borderColor = isHigh ? "#fca5a5" : "#86efac";
+    const textColor = isHigh ? "#dc2626" : "#166534";
+
+    return (
+      <View
+        style={[
+          styles.missedPill,
+          { backgroundColor: bgColor, borderColor },
+        ]}
+      >
+        <Text style={[styles.missedPillText, { color: textColor }]}>
+          Missed: {missedCount}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.wrapper}>
-        <ScrollView style={styles.main} showsVerticalScrollIndicator={false}>
-          {/* HEADER avec flèche de retour */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBack}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-back" size={24} color="#111618" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Prescriptions</Text>
-          </View>
 
-          {/* Liste des prescriptions (par utilisateur) */}
+      <View style={styles.wrapper}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={24} color="#111618" />
+          </TouchableOpacity>
+
+          <Text style={styles.headerTitle}>Prescriptions</Text>
+
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        <ScrollView
+          style={styles.main}
+          contentContainerStyle={styles.mainContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.prescriptionsContainer}>
             <View style={styles.prescriptionsList}>
               {loading ? (
-                <Text style={styles.emptyText}>Chargement…</Text>
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator size="small" color="#0A84FF" />
+                </View>
               ) : prescriptions.length > 0 ? (
-                prescriptions.map((p, index) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[
-                      styles.prescriptionItem,
-                      index !== prescriptions.length - 1 && styles.prescriptionItemBorder,
-                    ]}
-                    onPress={() => router.push(`/patient/prescriptions/${p.id}`)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.prescriptionInfo}>
-                      <Text style={styles.prescriptionName}>
-                        {p.medicationName || "Sans nom"}
-                      </Text>
-                      <Text style={styles.prescriptionDosage}>{p.dosage || "-"}</Text>
-                      {(p.startDate || p.endDate) && (
-                        <Text style={styles.prescriptionDates}>
-                          {p.startDate || ""} {p.endDate ? `→ ${p.endDate}` : ""}
-                        </Text>
-                      )}
-                    </View>
+                prescriptions.map((p, index) => {
+                  const missedCount = missedMap[p.id] || 0;
 
-                    <View style={styles.prescriptionTiming}>
-                      <Text style={styles.nextIntakeLabel}>Fréquence</Text>
-                      <Text style={styles.nextIntakeTime}>{p.frequency || "-"}</Text>
-                      {renderStatusPill(p.status)}
-                    </View>
-                  </TouchableOpacity>
-                ))
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[
+                        styles.prescriptionItem,
+                        index !== prescriptions.length - 1 &&
+                          styles.prescriptionItemBorder,
+                      ]}
+                      onPress={() => router.push(`/patient/prescriptions/${p.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.prescriptionInfo}>
+                        <Text style={styles.prescriptionName}>
+                          {p.medicationName || "Sans nom"}
+                        </Text>
+                        <Text style={styles.prescriptionDosage}>{p.dosage || "-"}</Text>
+                        {(p.startDate || p.endDate) && (
+                          <Text style={styles.prescriptionDates}>
+                            {p.startDate || ""} {p.endDate ? `→ ${p.endDate}` : ""}
+                          </Text>
+                        )}
+                      </View>
+
+                      <View style={styles.prescriptionTiming}>
+                        <Text style={styles.nextIntakeLabel}>Fréquence</Text>
+                        <Text style={styles.nextIntakeTime}>{p.frequency || "-"}</Text>
+                        {renderStatusPill(p.status)}
+                        {renderMissedPill(missedCount)}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               ) : (
                 <Text style={styles.emptyText}>Aucune prescription pour le moment.</Text>
               )}
@@ -146,7 +248,6 @@ export default function PrescriptionsScreen() {
           </View>
         </ScrollView>
 
-        {/* Bouton flottant + */}
         <TouchableOpacity
           style={styles.addButton}
           onPress={handleAddPrescription}
@@ -155,7 +256,6 @@ export default function PrescriptionsScreen() {
           <Ionicons name="add" size={32} color="#ffffff" />
         </TouchableOpacity>
 
-        {/* Navigation du bas */}
         <View style={styles.bottomNavigation}>
           <TouchableOpacity
             style={styles.navItem}
@@ -243,11 +343,11 @@ export default function PrescriptionsScreen() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f7f8fa" },
   wrapper: { flex: 1 },
-  main: { flex: 1, paddingBottom: 120 },
+  main: { flex: 1 },
+  mainContent: { paddingBottom: 140 },
 
   header: {
     flexDirection: "row",
@@ -265,11 +365,15 @@ const styles = StyleSheet.create({
     color: "#111618",
     flex: 1,
     textAlign: "center",
-    paddingRight: 32,
   },
+  headerRightSpacer: { width: 32 },
 
-  prescriptionsContainer: { paddingHorizontal: 16 },
-  prescriptionsList: { backgroundColor: "#ffffff", borderRadius: 24, overflow: "hidden" },
+  prescriptionsContainer: { paddingHorizontal: 16, paddingTop: 16 },
+  prescriptionsList: {
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    overflow: "hidden",
+  },
   prescriptionItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -277,23 +381,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  prescriptionItemBorder: { borderBottomWidth: 1, borderBottomColor: "#e5e7eb" },
-  prescriptionInfo: { flex: 1 },
-  prescriptionName: { fontSize: 18, fontWeight: "600", color: "#000000", marginBottom: 4 },
+  prescriptionItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  prescriptionInfo: { flex: 1, paddingRight: 12 },
+  prescriptionName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 4,
+  },
   prescriptionDosage: { fontSize: 16, color: "#6b7280" },
   prescriptionDates: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
-  prescriptionTiming: { alignItems: "flex-end" },
+
+  prescriptionTiming: { alignItems: "flex-end", minWidth: 110 },
   nextIntakeLabel: { fontSize: 14, color: "#6b7280", marginBottom: 4 },
   nextIntakeTime: { fontSize: 16, fontWeight: "600", color: "#000000" },
 
-  statusPill: { marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusPill: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
   statusPillText: { fontSize: 11, fontWeight: "700" },
 
+  missedPill: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  missedPillText: { fontSize: 11, fontWeight: "700" },
+
   emptyText: { textAlign: "center", padding: 20, color: "#6b7280" },
+  loadingBox: { padding: 20, alignItems: "center", justifyContent: "center" },
 
   addButton: {
     position: "absolute",
-    bottom: 120,
+    bottom: 100,
     right: 24,
     width: 56,
     height: 56,
@@ -315,22 +443,21 @@ const styles = StyleSheet.create({
     borderTopColor: "#e5e7eb",
     paddingTop: 8,
     paddingBottom: 8,
-    paddingHorizontal: 8, // a bit more room per item
+    paddingHorizontal: 8,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
     paddingVertical: 8,
   },
   navText: {
-    fontSize: 11,          // smaller to avoid wrap
+    fontSize: 11,
     fontWeight: "500",
     color: "#6b7280",
-    letterSpacing: -0.3,   // tighter
+    letterSpacing: -0.3,
     textAlign: "center",
-    includeFontPadding: false as any, // harmless on iOS, helps Android spacing
+    marginTop: 4,
   },
   navTextActive: {
     fontSize: 11,

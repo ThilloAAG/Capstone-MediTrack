@@ -11,10 +11,147 @@ import {
 import { db } from "../src/firebase";
 import { doctorNotificationService } from "./doctorNotificationService";
 import { doctorNotificationPreferencesService } from "./doctorNotificationPreferencesService";
+import { formatYYYYMMDD, parseDateEnd, parseDateStart } from "./prescriptionStatus";
 
 // ============================================================
 // MISSED DOSE SERVICE (Doctor-Patient Integration)
 // ============================================================
+
+const JS_DAY_TO_LABEL = {
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+};
+
+function normalizeHHMM(value) {
+  const s = String(value || "").trim();
+
+  const colon = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (colon) {
+    const hh = String(Math.min(23, Math.max(0, Number(colon[1])))).padStart(2, "0");
+    const mm = String(Math.min(59, Math.max(0, Number(colon[2])))).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+
+  const compact = /^(\d{2})(\d{2})$/.exec(s);
+  if (compact) {
+    const hh = String(Math.min(23, Math.max(0, Number(compact[1])))).padStart(2, "0");
+    const mm = String(Math.min(59, Math.max(0, Number(compact[2])))).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+
+  return "";
+}
+
+function getTimes(rx) {
+  const fromArray = Array.isArray(rx?.times)
+    ? rx.times.map(normalizeHHMM).filter(Boolean)
+    : [];
+
+  if (fromArray.length) return fromArray;
+
+  const legacy = normalizeHHMM(rx?.time);
+  return legacy ? [legacy] : [];
+}
+
+function dayMatches(rx, date) {
+  const ft = String(rx?.frequencyType || "DAILY").toUpperCase();
+  if (ft !== "WEEKLY") return true;
+
+  const selected = Array.isArray(rx?.daysOfWeek) ? rx.daysOfWeek : [];
+  return selected.includes(JS_DAY_TO_LABEL[date.getDay()]);
+}
+
+function completedSet(rx) {
+  return new Set(
+    (Array.isArray(rx?.dosesCompleted) ? rx.dosesCompleted : []).map((v) =>
+      String(v).trim()
+    )
+  );
+}
+
+function hasCompletedDose(completed, dateStr, hhmm, timesCountForDay) {
+  if (completed.has(`${dateStr}|${hhmm}`)) return true;
+  if (completed.has(`${dateStr}_${hhmm}`)) return true;
+  if (completed.has(`${dateStr} ${hhmm}`)) return true;
+  if (completed.has(`${dateStr}T${hhmm}`)) return true;
+
+  // legacy fallback if app stored only the date and there was one dose that day
+  if (timesCountForDay === 1 && completed.has(dateStr)) return true;
+
+  return false;
+}
+
+function atTime(base, hhmm) {
+  const [h, m] = String(hhmm || "00:00")
+    .split(":")
+    .map(Number);
+
+  const d = new Date(base);
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+export function getPrescriptionMissedCountPast7Days(rx, now = new Date()) {
+  const start = parseDateStart(String(rx?.startDate || ""));
+  const end = parseDateEnd(String(rx?.endDate || ""));
+
+  if (!start || !end) return 0;
+
+  const times = getTimes(rx);
+  if (!times.length) return 0;
+
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const rangeStart = new Date(Math.max(start.getTime(), sevenDaysAgo.getTime()));
+  const rangeEnd = new Date(Math.min(end.getTime(), now.getTime()));
+
+  if (rangeEnd.getTime() < rangeStart.getTime()) return 0;
+
+  const completed = completedSet(rx);
+  let missed = 0;
+
+  const cursor = new Date(rangeStart);
+  cursor.setHours(0, 0, 0, 0);
+
+  while (cursor.getTime() <= rangeEnd.getTime()) {
+    if (dayMatches(rx, cursor)) {
+      const dateStr = formatYYYYMMDD(cursor);
+
+      for (const hhmm of times) {
+        const scheduled = atTime(cursor, hhmm);
+
+        if (scheduled.getTime() < start.getTime()) continue;
+        if (scheduled.getTime() > end.getTime()) continue;
+        if (scheduled.getTime() > now.getTime()) continue;
+
+        if (!hasCompletedDose(completed, dateStr, hhmm, times.length)) {
+          missed += 1;
+        }
+      }
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+    cursor.setHours(0, 0, 0, 0);
+  }
+
+  return missed;
+}
+
+export function patientHasHighRiskMissedPrescription(
+  prescriptions,
+  now = new Date()
+) {
+  return (Array.isArray(prescriptions) ? prescriptions : []).some(
+    (rx) => getPrescriptionMissedCountPast7Days(rx, now) >= 3
+  );
+}
 
 export const missedDoseService = {
   /**
@@ -87,7 +224,8 @@ export const missedDoseService = {
 
           for (const doseDoc of doseSnapshot.docs) {
             const dose = doseDoc.data();
-            const scheduledTime = dose.scheduledTime?.toDate?.() || dose.scheduledTime;
+            const scheduledTime =
+              dose.scheduledTime?.toDate?.() || dose.scheduledTime;
 
             // Mark dose as missed
             await updateDoc(doseDoc.ref, {
@@ -97,13 +235,9 @@ export const missedDoseService = {
 
             // Get patient info
             const patientDoc = await getDocs(
-              query(
-                collection(db, "users"),
-                where("uid", "==", pid)
-              )
+              query(collection(db, "users"), where("uid", "==", pid))
             );
-            const patientName =
-              patientDoc.docs[0]?.data()?.name || "Patient";
+            const patientName = patientDoc.docs[0]?.data()?.name || "Patient";
 
             // Create notification (will check preferences again internally)
             const notifData = {
@@ -249,5 +383,21 @@ export const missedDoseService = {
       console.error("❌ Error getting doctor missed doses:", error);
       throw error;
     }
+  },
+
+  /**
+   * Prescription-level helper for doctor UI:
+   * number of missed scheduled doses in the past 7 days
+   */
+  getPrescriptionMissedCountPast7Days: (rx, now = new Date()) => {
+    return getPrescriptionMissedCountPast7Days(rx, now);
+  },
+
+  /**
+   * Patient-level helper for doctor dashboard:
+   * true if patient has at least one prescription with missed count >= 3
+   */
+  patientHasHighRiskMissedPrescription: (prescriptions, now = new Date()) => {
+    return patientHasHighRiskMissedPrescription(prescriptions, now);
   },
 };

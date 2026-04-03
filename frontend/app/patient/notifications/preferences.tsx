@@ -1,3 +1,4 @@
+//frontend/app/patient/notifications/preferences.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
